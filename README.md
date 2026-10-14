@@ -1,6 +1,6 @@
 # ConnectFour
 
-A polished take on the classic drop-four game, built with **Godot 4.7 (.NET / C#)**. It's our first game, and the goal is to ship something small that looks good.
+A tactile 3D take on the classic drop-four game for phones, built with **Godot 4.7 (.NET / C#)**. Spin the board, pick your materials, and listen to the pieces clatter.
 
 ## Getting started
 
@@ -17,15 +17,24 @@ dotnet test tests/ConnectFour.Tests    # run rules tests (no engine needed)
 
 Open the folder in Godot and press **F5**, or use the **Play ConnectFour** launch config in VS Code.
 
-**Controls:** click or tap a column, or press keys `1`–`7`.
+**Controls:** tap or click a column to drop (from the front or back), drag sideways to spin the board, or press keys `1`–`7`. **Style** picks the board and piece materials.
+
+**Developer demo:** to record or check a full round without input, run the game with arguments after `--`:
+
+```bash
+Godot.exe --path . -- --demo --board=Wood --pieces=Metal --spin=35
+```
+
+`--demo[=3,3,4,4,5,5,6]` plays the moves, then releases the pieces. `--board` and `--pieces` take `Plastic`, `Wood`, `Metal`, `Glass` or `Marble` and aren't saved. `--spin` is in degrees. Add `--write-movie out.png --fixed-fps 60 --quit-after 840` before the `--` to capture frames and audio.
 
 ## Layout
 
 ```
-src/Core/     Game rules: pure C#, no Godot types, fully unit-tested
-src/Game/     Godot nodes: rendering, input, UI
+src/Core/     Pure C#, no Godot types, fully unit-tested: game rules and the sound synthesiser
+src/Game/     Godot nodes: 3D board, physics discs, materials, audio, HUD
+shaders/      Procedural material shaders (plastic, wood, metal, marble, glass)
 scenes/       .tscn scenes
-assets/       art / audio / fonts (empty for now; visuals are procedural)
+assets/       art / audio / fonts (empty for now; looks and sounds are procedural)
 tests/        xUnit tests for src/Core (hidden from Godot via .gdignore)
 docs/         Design doc, roadmap, lessons learned
 ```

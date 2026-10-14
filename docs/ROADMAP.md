@@ -5,10 +5,19 @@
 - [x] Playable hot-seat match with polished procedural visuals
 - [x] Git repo
 
-## v0.2: Feel & polish
-- [ ] Sound effects (drop clack, win fanfare) and music
-- [ ] Win celebration (particles / confetti), screen shake on landing
-- [ ] Custom font, title screen, settings (sound on/off)
+## v0.2: 3D board ✅
+- [x] 3D board with physics discs that slide down the slots and stack
+- [x] Drag to spin the board (Y axis only, with inertia); tap to drop from either side
+- [x] Style menu: 5 boards (Classic, Oak, Steel, Glass, Marble) × 5 piece sets, each with procedural patterns
+- [x] Synthesised per-material sounds: impacts, piece-on-piece clacks, sliding scrape
+- [x] End of round: tray slides out and the pieces tumble onto the table
+- [x] Sound on/off; style and sound choices saved between sessions
+
+## v0.2.5: Feel & polish
+- [ ] Test on a real phone (performance, touch feel, spin sensitivity)
+- [ ] Win fanfare and music
+- [ ] Win celebration (particles / confetti)
+- [ ] Custom font, title screen
 - [ ] App icon
 
 ## v0.3: Single player

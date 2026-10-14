@@ -34,3 +34,10 @@ project/assembly_name="ConnectFour"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 environment/defaults/default_clear_color=Color(0.07, 0.08, 0.2, 1)
+anti_aliasing/quality/msaa_3d=2
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+common/physics_ticks_per_second=120
+common/max_physics_steps_per_frame=16
