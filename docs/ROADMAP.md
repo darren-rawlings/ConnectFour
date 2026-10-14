@@ -16,7 +16,7 @@
 - [ ] Mode select: vs Friend / vs Computer
 
 ## v0.4: Ship
-- [ ] Decide distribution (see "Hosting" below)
+- [x] Decide distribution: phone-only, Android + AdMob (see "Hosting" below)
 - [ ] Export presets plus GitHub Actions to build releases automatically
 - [ ] Landing page
 
@@ -25,8 +25,7 @@
 - [ ] Dedicated domain, host site, and support email
 - [ ] Privacy policy (required for ads)
 
-## Hosting: open decision
-Godot 4 C# can't export to the web yet (expected no earlier than 4.8). Options:
-1. **Stay C#, ship downloads/mobile now.** Windows build on itch.io / GitHub Releases, Android on Google Play. Ads via **AdMob** (Google's mobile ads). Add a web build when Godot supports it.
-2. **Switch to GDScript.** Web export works today and can be hosted on GitHub Pages / itch.io, with ads via **AdSense** on our own site.
-3. **Hybrid.** Keep C# and wait for 4.8, with no web build until then.
+## Hosting: decided (2026-10-14)
+**Stay C#, phone-only (Android first).** Ship on Google Play with ads via **AdMob**. Desktop and web builds are out of scope for now. Revisit a web build when Godot C# supports it (4.8+).
+
+Testing: run in the Godot editor (portrait 540x960 window, touch emulated from mouse), then one-click deploy to a real Android phone over USB.
