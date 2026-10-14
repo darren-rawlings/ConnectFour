@@ -1,0 +1,20 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# .NET build output
+bin/
+obj/
+*.user
+
+# Exports (publish builds via GitHub Releases, not commits)
+/build/
+*.apk
+*.aab
+*.exe
+*.pck
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vs/
