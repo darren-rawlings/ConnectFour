@@ -1,5 +1,5 @@
 using ConnectFour.Core;
-using ConnectFour.Core.Synth;
+using Renegade.Core.Synth;
 using Godot;
 
 namespace ConnectFour.Game;

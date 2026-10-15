@@ -1,10 +1,13 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ConnectFour.Core;
-using ConnectFour.Game.Ads;
 using ConnectFour.Game.Audio;
 using ConnectFour.Game.Ui;
 using Godot;
+using Renegade.Ads;
+using Renegade.Audio;
+using Renegade.Core;
+using Renegade.Dev;
 using static ConnectFour.Game.BoardLayout;
 
 namespace ConnectFour.Game;
@@ -72,6 +75,12 @@ public partial class Main : Node3D
 	private int _computerGeneration;
 	private bool _newMatchPending;
 
+	/// <summary>
+	/// Google's test ad units until the real ones exist in the AdMob account. The game is for
+	/// everyone, children included, so every ad request is child-directed.
+	/// </summary>
+	private static readonly AdMobConfig AdUnits = AdMobConfig.Test;
+
 	private IAdService _ads = null!;
 	private AdSchedule _adSchedule = null!;
 	private Player _roundStarter = Player.One;
@@ -104,6 +113,7 @@ public partial class Main : Node3D
 
 	public override void _Ready()
 	{
+		DevLog.Tag = "cf";
 		_settings = Settings.Load();
 		ReadDeveloperArgs();
 		AudioServer.SetBusMute(0, _settings.Muted);
@@ -118,18 +128,13 @@ public partial class Main : Node3D
 		_rig.RotateY(_initialSpin);
 
 		_adSchedule ??= new AdSchedule(_settings.GamesSinceAd);
-		if (AdMobAds.Available && !_demo)
+		_ads = AdServices.Create(this, AdUnits, _demo, new PlaceholderAds
 		{
-			var admob = new AdMobAds();
-			admob.Start();
-			_ads = admob;
-		}
-		else
-		{
-			var placeholder = new PlaceholderAds { AutoClose = _demo };
-			AddChild(placeholder);
-			_ads = placeholder;
-		}
+			TextColor = Palette.Text,
+			RewardTitle = "Watch to undo your move",
+			ClaimText = "Claim undo",
+			SkipText = "Skip (no undo)",
+		});
 
 		_hud = new Hud();
 		AddChild(_hud);
@@ -805,11 +810,9 @@ public partial class Main : Node3D
 	/// </summary>
 	private void ReadDeveloperArgs()
 	{
-		foreach (string arg in DeveloperArgs())
+		foreach (var (name, value) in DevArgs.Read())
 		{
-			var parts = arg.Split('=', 2);
-			string value = parts.Length > 1 ? parts[1] : "";
-			switch (parts[0])
+			switch (name)
 			{
 				case "--demo":
 					_demo = true;
@@ -858,27 +861,6 @@ public partial class Main : Node3D
 					_initialSpin = Mathf.DegToRad(float.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
 					break;
 			}
-		}
-	}
-
-	/// <summary>
-	/// Command-line user args, plus any in a one-shot user://dev_args.txt (one per line). Phones
-	/// can't pass launch arguments to the game, so tests push this file over adb instead. It is
-	/// deleted after reading so the next normal launch is unaffected.
-	/// </summary>
-	private static IEnumerable<string> DeveloperArgs()
-	{
-		foreach (string arg in OS.GetCmdlineUserArgs())
-			yield return arg;
-		const string path = "user://dev_args.txt";
-		if (!FileAccess.FileExists(path))
-			yield break;
-		string text = FileAccess.GetFileAsString(path);
-		DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(path));
-		foreach (string line in text.Split('\n'))
-		{
-			if (line.Trim() is { Length: > 0 } arg)
-				yield return arg;
 		}
 	}
 

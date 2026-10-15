@@ -16,7 +16,7 @@ public sealed class Settings
 	public Difficulty Difficulty { get; set; } = Difficulty.Medium;
 	public bool Muted { get; set; }
 
-	/// <summary>Finished games since the last between-games ad; see <see cref="AdSchedule"/>.</summary>
+	/// <summary>Finished games since the last between-games ad; see <see cref="Renegade.Core.AdSchedule"/>.</summary>
 	public int GamesSinceAd { get; set; }
 
 	public static Settings Load()

@@ -5,7 +5,7 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>ConnectFour</RootNamespace>
     <Nullable>enable</Nullable>
-    <!-- Unit tests are a separate project, and the AdMob plugin's sample code isn't needed: keep both out of the game assembly. -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;addons/admob/csharp/sample/**</DefaultItemExcludes>
+    <!-- Unit tests are separate projects, and the AdMob plugin's sample code isn't needed: keep them out of the game assembly. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;addons/admob/csharp/sample/**;addons/renegade_core/tests/**;addons/renegade_core/**/bin/**;addons/renegade_core/**/obj/**</DefaultItemExcludes>
   </PropertyGroup>
 </Project>
