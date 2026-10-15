@@ -32,6 +32,7 @@ public partial class Disc : RigidBody3D
 	private Vector3 _previousVelocity;
 	private float _cooldown;
 	private float _gravity;
+	private bool _lively;
 
 	public void Setup(Player player, Cell cell, Style style)
 	{
@@ -60,19 +61,43 @@ public partial class Disc : RigidBody3D
 	public override void _Ready()
 	{
 		_gravity = (float)ProjectSettings.GetSetting("physics/3d/default_gravity") * Gravity;
-		_previousVelocity = LinearVelocity;
+	}
+
+	/// <summary>
+	/// Dropped discs barely bounce, so they land with one clean hit and settle quickly. Released
+	/// discs get their material's full bounce so they clatter and scatter.
+	/// </summary>
+	public bool Lively
+	{
+		get => _lively;
+		set
+		{
+			_lively = value;
+			UpdatePhysicsMaterial();
+		}
+	}
+
+	/// <summary>Places the disc and sets it moving. Call before adding it to the tree.</summary>
+	public void Launch(Transform3D transform, Vector3 velocity)
+	{
+		Transform = transform;
+		LinearVelocity = velocity;
+		_previousVelocity = velocity;
 	}
 
 	public void ApplyStyle(Style style)
 	{
 		Style = style;
 		Mesh.MaterialOverride = MaterialFactory.For(Styles.Pieces(style).LookOf(Player), isDisc: true, _variant);
-		PhysicsMaterialOverride = new PhysicsMaterial { Bounce = Styles.Bounce(style), Friction = 0.35f };
+		UpdatePhysicsMaterial();
 		bool wasPlaying = _slide.Playing;
 		_slide.Stream = SoundBank.Slide(style);
 		if (wasPlaying)
 			_slide.Play();
 	}
+
+	private void UpdatePhysicsMaterial() =>
+		PhysicsMaterialOverride = new PhysicsMaterial { Bounce = Styles.Bounce(Style) * (_lively ? 1f : 0.15f), Friction = 0.35f };
 
 	/// <summary>Sets the sliding scrape level, 0..1. Zero stops it.</summary>
 	public void SetSlide(float intensity)
@@ -83,7 +108,7 @@ public partial class Disc : RigidBody3D
 				_slide.Stop();
 			return;
 		}
-		_slide.VolumeDb = Mathf.LinearToDb(intensity * 0.45f) + Styles.GainDb(Style);
+		_slide.VolumeDb = Mathf.LinearToDb(intensity * 0.3f) + SoundPool.MasterDb + Styles.GainDb(Style);
 		_slide.PitchScale = 0.85f + intensity * 0.3f;
 		if (!_slide.Playing)
 			_slide.Play((float)GD.RandRange(0.0, 0.9));

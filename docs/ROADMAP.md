@@ -38,3 +38,6 @@
 **Stay C#, phone-only (Android first).** Ship on Google Play with ads via **AdMob**. Desktop and web builds are out of scope for now. Revisit a web build when Godot C# supports it (4.8+).
 
 Testing: run in the Godot editor (portrait 540x960 window, touch emulated from mouse), then one-click deploy to a real Android phone over USB.
+
+## Backlog
+- [ ] Background style menu (scenes behind the board, e.g. games room, night sky, dojo), alongside the board and piece styles

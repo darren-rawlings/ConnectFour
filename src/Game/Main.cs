@@ -32,7 +32,7 @@ public partial class Main : Node3D
 	private const float SpinDamping = 1.6f;
 	private const float DragThreshold = 14f;
 	private const float SettleSpeed = 0.15f;
-	private const float SettleHold = 0.12f;
+	private const float SettleHold = 0.06f;
 	private const float MaxFallTime = 3f;
 	private const float ReleaseTime = 2.6f;
 
@@ -56,6 +56,7 @@ public partial class Main : Node3D
 	private MoveResult? _pending;
 	private float _fallTime;
 	private float _settleTime;
+	private bool _landed;
 	private int _hoverColumn = -1;
 
 	// Spin input: a press becomes a drag once it moves far enough, otherwise it's a tap.
@@ -68,6 +69,7 @@ public partial class Main : Node3D
 	// Developer demo (launch with `-- --demo`): plays scripted moves, then releases the pieces.
 	private readonly Queue<int> _demoMoves = new();
 	private bool _demo;
+	private bool _demoSpin;
 	private float _demoTimer;
 	private float _initialSpin;
 
@@ -269,6 +271,7 @@ public partial class Main : Node3D
 			_rig.RotateY(_spinVelocity * dt);
 			_spinVelocity *= Mathf.Exp(-SpinDamping * dt);
 		}
+		SyncSettledDiscs();
 
 		bool showGhost = _phase == Phase.Ready && _hoverColumn >= 0 && !_hud.MenuOpen;
 		_ghost.Visible = showGhost;
@@ -314,9 +317,9 @@ public partial class Main : Node3D
 			return;
 
 		_spinVelocity = 0f;
-		var disc = SpawnDisc(move.Player, move.Cell);
-		disc.GlobalTransform = _rig.GlobalTransform * new Transform3D(Basis.Identity, new Vector3(ColumnX(column), SpawnY, 0));
-		disc.LinearVelocity = _rig.GlobalBasis * new Vector3(0, -2f, 0);
+		var spawn = _rig.GlobalTransform * new Transform3D(Basis.Identity, new Vector3(ColumnX(column), SpawnY, 0));
+		var disc = SpawnDisc(move.Player, move.Cell, spawn, _rig.GlobalBasis * new Vector3(0, -2f, 0));
+		_landed = false;
 
 		_falling = disc;
 		_pending = move;
@@ -327,14 +330,30 @@ public partial class Main : Node3D
 		RefreshUi();
 	}
 
-	private Disc SpawnDisc(Player player, Cell cell)
+	private Disc SpawnDisc(Player player, Cell cell, Transform3D transform, Vector3 velocity)
 	{
 		var disc = new Disc();
 		disc.Setup(player, cell, _settings.Pieces);
+		disc.Launch(transform, velocity);
 		disc.Hit += OnDiscHit;
 		_looseRoot.AddChild(disc);
 		_loose.Add(disc);
 		return disc;
+	}
+
+	/// <summary>
+	/// Keeps settled discs locked to their cells as the board spins. Physics bodies don't reliably
+	/// follow a moving parent (the engine writes back their own last-known position), so instead
+	/// of parenting them to the board we place them explicitly every frame.
+	/// </summary>
+	private void SyncSettledDiscs()
+	{
+		var board = _rig.GlobalTransform;
+		foreach (var disc in _discs)
+		{
+			if (disc != null)
+				disc.GlobalTransform = board * new Transform3D(Basis.Identity, CellCenter(disc.Cell));
+		}
 	}
 
 	private void CheckSettled(Disc disc, float dt)
@@ -342,7 +361,10 @@ public partial class Main : Node3D
 		_fallTime += dt;
 		var local = _rig.ToLocal(disc.GlobalPosition);
 		var target = CellCenter(disc.Cell);
-		bool resting = disc.LinearVelocity.Length() < SettleSpeed && Mathf.Abs(local.Y - target.Y) < 0.2f;
+		// A disc resting on another balances on a curved edge and can rock for a second or more,
+		// so once it has landed near its cell and isn't rebounding, call it settled and lock it in.
+		bool landedInPlace = _landed && Mathf.Abs(local.Y - target.Y) < 0.12f && Mathf.Abs(disc.LinearVelocity.Y) < 1.5f;
+		bool resting = landedInPlace || (disc.LinearVelocity.Length() < SettleSpeed && Mathf.Abs(local.Y - target.Y) < 0.2f);
 		_settleTime = resting ? _settleTime + dt : 0f;
 
 		// The timeout is a safety net in case physics ever wedges a disc; it snaps into place.
@@ -358,10 +380,8 @@ public partial class Main : Node3D
 		disc.Freeze = true;
 		disc.SetSlide(0f);
 		_loose.Remove(disc);
-		disc.Reparent(_rig);
-		disc.Position = CellCenter(disc.Cell);
-		disc.Rotation = Vector3.Zero;
 		_discs[disc.Cell.Column, disc.Cell.Row] = disc;
+		SyncSettledDiscs();
 
 		var move = _pending;
 		_pending = null;
@@ -395,7 +415,7 @@ public partial class Main : Node3D
 		foreach (var disc in new List<Disc>(AllDiscs()))
 		{
 			disc.Mesh.MaterialOverlay = null;
-			disc.Reparent(_looseRoot);
+			disc.Lively = true;
 			disc.Freeze = false;
 			disc.Sleeping = false;
 			_loose.Add(disc);
@@ -428,8 +448,40 @@ public partial class Main : Node3D
 
 	// ---------------------------------------------------------------- Sound
 
+	/// <summary>
+	/// Volume of a disc-on-disc landing by the row it fills: full in the second row, then 20%
+	/// quieter per row, down to 20% at the top, since the disc falls less far.
+	/// </summary>
+	public static float LandingVolume(int row) => row <= 1 ? 1f : Mathf.Max(0.2f, 1f - 0.2f * (row - 1));
+
 	private void OnDiscHit(Disc disc, float impact, Node? other)
 	{
+		if (other == null)
+			return;
+
+		if (disc == _falling)
+		{
+			// A dropped disc makes exactly one sound: the moment it lands on the tray or the disc
+			// below. Rattles against the slot walls and small rebounds stay silent so the sound
+			// lines up with what you see.
+			bool landing = other is Disc || _rig.IsTray(other);
+			if (_landed || !landing)
+				return;
+			_landed = true;
+			if (disc.Cell.Row == 0)
+			{
+				// On the bottom row the disc meets the board itself, so both materials are heard. Each is
+				// played softer so together they stay below a disc-on-disc landing in the second row.
+				_sound.PlayImpact(disc.Style, disc.GlobalPosition, 0.5f);
+				_sound.PlayImpact(_rig.Style, disc.GlobalPosition, 0.5f);
+			}
+			else
+			{
+				_sound.PlayImpact(disc.Style, disc.GlobalPosition, LandingVolume(disc.Cell.Row));
+			}
+			return;
+		}
+
 		// When two loose discs collide both report it; only the one with the lower id plays it.
 		if (other is Disc { Freeze: false } peer && peer.GetInstanceId() < disc.GetInstanceId())
 			return;
@@ -453,7 +505,7 @@ public partial class Main : Node3D
 
 	/// <summary>
 	/// Optional user args after `--`: `--demo[=3,3,4,4,5,5,6]`, `--board=Wood`, `--pieces=Metal`,
-	/// `--spin=35` (degrees). Style overrides are not saved. Used to record test footage.
+	/// `--spin=35` (degrees), `--demo-spin` (spin the board before releasing). Style overrides are not saved. Used to record test footage.
 	/// </summary>
 	private void ReadDeveloperArgs()
 	{
@@ -474,6 +526,9 @@ public partial class Main : Node3D
 				case "--pieces" when System.Enum.TryParse(value, out Style pieces):
 					_settings.Pieces = pieces;
 					break;
+				case "--demo-spin":
+					_demoSpin = true;
+					break;
 				case "--spin":
 					_initialSpin = Mathf.DegToRad(float.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
 					break;
@@ -490,6 +545,13 @@ public partial class Main : Node3D
 		{
 			_demoTimer = 0f;
 			TryPlay(_demoMoves.Dequeue());
+		}
+		else if (_phase == Phase.RoundOver && _demoSpin && _demoTimer > 0.5f)
+		{
+			// Spin the finished board to check the discs stay locked in place.
+			_demoSpin = false;
+			_demoTimer = -2.5f;
+			_spinVelocity = 3.5f;
 		}
 		else if (_phase == Phase.RoundOver && _demoTimer > 1.5f)
 		{

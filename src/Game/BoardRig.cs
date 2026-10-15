@@ -101,6 +101,8 @@ public partial class BoardRig : Node3D
 		tween.Finished += () => _trayShape.Disabled = false;
 	}
 
+	public bool IsTray(Node node) => node == _tray;
+
 	/// <summary>World position of the tray's sticking-out end, for the release sound.</summary>
 	public Vector3 TrayEnd => ToGlobal(_trayHome + Vector3.Right * (GridWidth / 2f));
 

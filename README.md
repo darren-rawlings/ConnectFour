@@ -25,7 +25,7 @@ Open the folder in Godot and press **F5**, or use the **Play ConnectFour** launc
 Godot.exe --path . -- --demo --board=Wood --pieces=Metal --spin=35
 ```
 
-`--demo[=3,3,4,4,5,5,6]` plays the moves, then releases the pieces. `--board` and `--pieces` take `Plastic`, `Wood`, `Metal`, `Glass` or `Marble` and aren't saved. `--spin` is in degrees. Add `--write-movie out.png --fixed-fps 60 --quit-after 840` before the `--` to capture frames and audio.
+`--demo[=3,3,4,4,5,5,6]` plays the moves, then releases the pieces. `--board` and `--pieces` take `Plastic`, `Wood`, `Metal`, `Glass` or `Marble` and aren't saved. `--spin` is in degrees, and `--demo-spin` spins the finished board before the release. Add `--write-movie out.png --fixed-fps 60 --quit-after 840` before the `--` to capture frames and audio.
 
 ## Layout
 
