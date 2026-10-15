@@ -36,6 +36,9 @@ public partial class Main : Node3D
 	private const float MaxFallTime = 3f;
 	private const float ReleaseTime = 2.6f;
 
+	/// <summary>Landings are the sound that matters most; lift them above the release clatter.</summary>
+	private const float LandingBoostDb = 3f;
+
 	private readonly Match _match = new();
 	private readonly Dictionary<Player, int> _wins = new() { [Player.One] = 0, [Player.Two] = 0 };
 	private readonly Disc?[,] _discs = new Disc?[Board.Columns, Board.Rows];
@@ -72,6 +75,7 @@ public partial class Main : Node3D
 	private bool _demo;
 	private bool _demoSpin;
 	private bool _openMenu;
+	private bool _quitAfterDemo;
 	private float _demoDelay = 0.35f;
 	private string? _recordAudioPath;
 	private AudioEffectRecord? _recorder;
@@ -145,6 +149,7 @@ public partial class Main : Node3D
 		};
 		AddChild(_camera);
 		_camera.LookAt(new Vector3(0, 2.0f, 0));
+		WarmUpShaders();
 
 		_rig = new BoardRig();
 		AddChild(_rig);
@@ -163,6 +168,24 @@ public partial class Main : Node3D
 		AddChild(_looseRoot);
 		_sound = new SoundPool();
 		AddChild(_sound);
+	}
+
+	/// <summary>
+	/// Phones compile each shader the first time it is drawn, which stalls that frame; the first
+	/// win used to hitch while the glow compiled. Draw every shader for a moment at startup so
+	/// that cost is paid up front. The discs sit full size under the table: hidden, but lit and
+	/// shadowed like real ones, so the exact same shader variants get compiled.
+	/// </summary>
+	private void WarmUpShaders()
+	{
+		var warm = new Node3D { Position = new Vector3(0, TableY - 1.5f, 0) };
+		AddChild(warm);
+		var opaque = MaterialFactory.For(Styles.Pieces(Style.Plastic).One, isDisc: true);
+		var glass = MaterialFactory.For(Styles.Pieces(Style.Glass).One, isDisc: true);
+		warm.AddChild(new MeshInstance3D { Mesh = Meshes.Disc, MaterialOverride = opaque, MaterialOverlay = MaterialFactory.Glow });
+		warm.AddChild(new MeshInstance3D { Mesh = Meshes.Disc, MaterialOverride = glass });
+		warm.AddChild(new MeshInstance3D { Mesh = Meshes.Disc, MaterialOverride = opaque, Transparency = 0.5f });
+		GetTree().CreateTimer(0.3).Timeout += warm.QueueFree;
 	}
 
 	// ---------------------------------------------------------------- Input
@@ -239,6 +262,8 @@ public partial class Main : Node3D
 	public override void _Process(double delta)
 	{
 		float dt = (float)delta;
+		if (dt > 0.05f)
+			DevLog.Write($"slow frame {dt * 1000:0}ms phase={_phase}");
 		RunDemo(dt);
 		if (!_dragging && _spinVelocity != 0f)
 		{
@@ -354,6 +379,7 @@ public partial class Main : Node3D
 
 	private void Settle(Disc disc)
 	{
+		DevLog.Write($"settle {disc.Cell} after {_fallTime:0.00}s");
 		disc.Freeze = true;
 		disc.SetSlide(0f);
 		_loose.Remove(disc);
@@ -373,6 +399,7 @@ public partial class Main : Node3D
 		{
 			_phase = move is { Status: MatchStatus.Draw } ? Phase.RoundOver : Phase.Ready;
 		}
+		DevLog.Write($"phase {_phase}");
 		RefreshUi();
 	}
 
@@ -405,6 +432,8 @@ public partial class Main : Node3D
 
 	private void FinishRelease()
 	{
+		if (_demo && _quitAfterDemo && _demoMoves.Count == 0)
+			GetTree().CreateTimer(1.0).Timeout += () => GetTree().Quit();
 		foreach (var disc in _loose)
 		{
 			var d = disc;
@@ -433,6 +462,7 @@ public partial class Main : Node3D
 
 	private void OnDiscHit(Disc disc, float impact, Node? other)
 	{
+		DevLog.Write($"hit {disc.Cell} impact={impact:0.0} other={other?.Name ?? "none"} falling={disc == _falling} landed={_landed}");
 		if (other == null)
 			return;
 
@@ -449,12 +479,12 @@ public partial class Main : Node3D
 			{
 				// On the bottom row the disc meets the board itself, so both materials are heard. Each is
 				// played softer so together they stay below a disc-on-disc landing in the second row.
-				_sound.PlayImpact(disc.Style, disc.GlobalPosition, 0.5f);
-				_sound.PlayImpact(_rig.Style, disc.GlobalPosition, 0.5f);
+				_sound.PlayImpact(disc.Style, disc.GlobalPosition, 0.5f, LandingBoostDb);
+				_sound.PlayImpact(_rig.Style, disc.GlobalPosition, 0.5f, LandingBoostDb);
 			}
 			else
 			{
-				_sound.PlayImpact(disc.Style, disc.GlobalPosition, LandingVolume(disc.Cell.Row));
+				_sound.PlayImpact(disc.Style, disc.GlobalPosition, LandingVolume(disc.Cell.Row), LandingBoostDb);
 			}
 			return;
 		}
@@ -493,7 +523,7 @@ public partial class Main : Node3D
 	/// </summary>
 	private void ReadDeveloperArgs()
 	{
-		foreach (string arg in OS.GetCmdlineUserArgs())
+		foreach (string arg in DeveloperArgs())
 		{
 			var parts = arg.Split('=', 2);
 			string value = parts.Length > 1 ? parts[1] : "";
@@ -520,6 +550,12 @@ public partial class Main : Node3D
 				case "--demo-delay":
 					_demoDelay = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 					break;
+				case "--quit-after-demo":
+					_quitAfterDemo = true;
+					break;
+				case "--log":
+					DevLog.Enabled = true;
+					break;
 				case "--menu":
 					_openMenu = true;
 					break;
@@ -530,6 +566,27 @@ public partial class Main : Node3D
 					_initialSpin = Mathf.DegToRad(float.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
 					break;
 			}
+		}
+	}
+
+	/// <summary>
+	/// Command-line user args, plus any in a one-shot user://dev_args.txt (one per line). Phones
+	/// can't pass launch arguments to the game, so tests push this file over adb instead. It is
+	/// deleted after reading so the next normal launch is unaffected.
+	/// </summary>
+	private static IEnumerable<string> DeveloperArgs()
+	{
+		foreach (string arg in OS.GetCmdlineUserArgs())
+			yield return arg;
+		const string path = "user://dev_args.txt";
+		if (!FileAccess.FileExists(path))
+			yield break;
+		string text = FileAccess.GetFileAsString(path);
+		DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(path));
+		foreach (string line in text.Split('\n'))
+		{
+			if (line.Trim() is { Length: > 0 } arg)
+				yield return arg;
 		}
 	}
 

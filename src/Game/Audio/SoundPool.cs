@@ -25,16 +25,17 @@ public partial class SoundPool : Node3D
 		}
 	}
 
-	/// <summary>Plays a strike of the given material. Strength is 0..1.</summary>
-	public void PlayImpact(Style style, Vector3 position, float strength)
+	/// <summary>Plays a strike of the given material. Strength is 0..1; boostDb lifts key sounds.</summary>
+	public void PlayImpact(Style style, Vector3 position, float strength, float boostDb = 0f)
 	{
 		var player = _players[_next];
 		_next = (_next + 1) % Voices;
 		player.Stream = SoundBank.RandomImpact(style);
 		player.GlobalPosition = position;
-		player.VolumeDb = Mathf.LinearToDb(Mathf.Clamp(strength, 0.02f, 1f)) + Styles.GainDb(style) + MasterDb;
+		player.VolumeDb = Mathf.LinearToDb(Mathf.Clamp(strength, 0.02f, 1f)) + Styles.GainDb(style) + MasterDb + boostDb;
 		// Light taps sound slightly higher than full-force hits, as with real objects.
 		player.PitchScale = (float)GD.RandRange(0.95, 1.05) + (1f - strength) * 0.06f;
+		DevLog.Write($"impact {style} strength={strength:0.00}");
 		player.Play();
 	}
 

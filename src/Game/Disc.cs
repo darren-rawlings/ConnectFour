@@ -111,6 +111,7 @@ public partial class Disc : RigidBody3D
 			// next update, so starting at the default 0 dB caused a loud 60 ms burst at every drop.
 			_slideLevel = 0f;
 			_slide.VolumeDb = -80f;
+			DevLog.Write($"slide start {Cell}");
 			_slide.Play((float)GD.RandRange(0.0, 0.9));
 		}
 	}
@@ -127,7 +128,9 @@ public partial class Disc : RigidBody3D
 			_slide.Stop();
 			return;
 		}
-		_slide.VolumeDb = Mathf.LinearToDb(_slideLevel * 0.3f) + SoundPool.MasterDb + Styles.GainDb(Style);
+		// Kept well under the landing: a sustained scrape sounds louder than a short click, and on
+		// phone speakers it drowned the landings out.
+		_slide.VolumeDb = Mathf.LinearToDb(_slideLevel * 0.1f) + SoundPool.MasterDb + Styles.GainDb(Style);
 		_slide.PitchScale = 0.85f + _slideLevel * 0.3f;
 	}
 
