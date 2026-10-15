@@ -16,7 +16,7 @@ A tactile 3D Connect Four for phones. Pieces of real-feeling materials slide, cl
 - **Constraint:** Godot 4 cannot export C# projects to the web (as of 4.7). Distribution options are in ROADMAP.md.
 
 ## Current state (v0.2: 3D board)
-- Local two-player (hot-seat) on one device
+- Player vs Player on one device, or Player vs Computer (you are Red; Easy, Medium or Hard). There is no top-level menu: the mode buttons sit between Style and Sound. Changing the mode or level starts a fresh match at 0-0
 - Real 3D board: two holed panels with a slot between them, column dividers, a sliding tray at the bottom, and legs about two rows tall, so a full board of released pieces falls clear underneath
 - Discs are physics bodies (Jolt, 120 Hz, exaggerated gravity so the ~6-unit board feels table-sized). Once a disc settles it is frozen and parented to the board, so it spins with it
 - Spin: drag sideways to turn the board around its vertical (Y) axis, with inertia. Only the board moves; the camera and table stay put. Spinning is locked while any disc is moving
@@ -41,7 +41,7 @@ Boards and pieces are chosen independently in the Style menu and saved in `user:
 - **Sounds:** synthesised at startup (`src/Core/Synth`) from modal recipes: decaying resonant modes plus a noise click. Impacts are detected from velocity changes gravity doesn't explain, and the volume follows how hard the hit was. A disc striking another material also plays that material's sound, more quietly.
 
 ## Not yet decided
-- AI opponent difficulty levels
+
 - Real recorded sound samples, if the synthesised ones don't feel real enough on a phone
 - Theme / skin (classic, or something with personality, such as a dojo theme?)
 - Music

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using ConnectFour.Core;
 using ConnectFour.Game.Audio;
 using ConnectFour.Game.Ui;
@@ -61,6 +62,11 @@ public partial class Main : Node3D
 	private float _fallTime;
 	private float _settleTime;
 	private bool _landed;
+
+	private Task<(int Generation, int Column)>? _thinking;
+	private float _thinkTime;
+	private int _computerGeneration;
+	private bool _newMatchPending;
 	private int _hoverColumn = -1;
 
 	// Spin input: a press becomes a drag once it moves far enough, otherwise it's a tap.
@@ -75,6 +81,7 @@ public partial class Main : Node3D
 	private bool _demo;
 	private bool _demoSpin;
 	private bool _openMenu;
+	private bool _openDifficulty;
 	private bool _quitAfterDemo;
 	private float _demoDelay = 0.35f;
 	private string? _recordAudioPath;
@@ -99,7 +106,14 @@ public partial class Main : Node3D
 
 		_hud = new Hud();
 		AddChild(_hud);
-		_hud.Build(_settings.Board, _settings.Pieces, _settings.Backdrop, _settings.Muted);
+		_hud.Build(_settings);
+		_hud.ModeChosen += (mode, difficulty) =>
+		{
+			_settings.Mode = mode;
+			_settings.Difficulty = difficulty;
+			_settings.Save();
+			StartNewMatch();
+		};
 		_hud.ClearPressed += Release;
 		_hud.BoardChosen += style =>
 		{
@@ -127,7 +141,9 @@ public partial class Main : Node3D
 			_settings.Save();
 			AudioServer.SetBusMute(0, muted);
 		};
-		if (_openMenu)
+		if (_openDifficulty)
+			_hud.OpenDifficultyPopup();
+		else if (_openMenu)
 			_hud.OpenMenu();
 		RefreshUi();
 	}
@@ -148,7 +164,7 @@ public partial class Main : Node3D
 			Position = new Vector3(0, 4.6f, 13.6f),
 		};
 		AddChild(_camera);
-		_camera.LookAt(new Vector3(0, 2.0f, 0));
+		_camera.LookAt(new Vector3(0, 1.5f, 0));
 		WarmUpShaders();
 
 		_rig = new BoardRig();
@@ -265,6 +281,7 @@ public partial class Main : Node3D
 		if (dt > 0.05f)
 			DevLog.Write($"slow frame {dt * 1000:0}ms phase={_phase}");
 		RunDemo(dt);
+		UpdateComputer(dt);
 		if (!_dragging && _spinVelocity != 0f)
 		{
 			// Ease to a stop, and freeze the spin the moment a disc needs the board still.
@@ -275,7 +292,7 @@ public partial class Main : Node3D
 		}
 		SyncSettledDiscs();
 
-		bool showGhost = _phase == Phase.Ready && _hoverColumn >= 0 && !_hud.MenuOpen;
+		bool showGhost = _phase == Phase.Ready && _hoverColumn >= 0 && !_hud.MenuOpen && !IsComputerTurn;
 		_ghost.Visible = showGhost;
 		if (showGhost)
 		{
@@ -310,9 +327,9 @@ public partial class Main : Node3D
 
 	// ---------------------------------------------------------------- Moves
 
-	private void TryPlay(int column)
+	private void TryPlay(int column, bool byComputer = false)
 	{
-		if (_phase != Phase.Ready || column < 0 || _hud.MenuOpen)
+		if (_phase != Phase.Ready || column < 0 || (_hud.MenuOpen && !byComputer) || (IsComputerTurn && !byComputer))
 			return;
 		var result = _match.Play(column);
 		if (result is not { } move)
@@ -401,6 +418,91 @@ public partial class Main : Node3D
 		}
 		DevLog.Write($"phase {_phase}");
 		RefreshUi();
+		if (_newMatchPending)
+			StartNewMatch();
+	}
+
+	// ---------------------------------------------------------------- Computer opponent
+
+	/// <summary>The computer always plays Yellow (Player Two); you play Red.</summary>
+	private const Player ComputerSide = Player.Two;
+
+	/// <summary>Shortest "thinking" pause, so the computer's reply doesn't land instantly.</summary>
+	private const float MinThinkTime = 0.6f;
+
+	private bool VsComputer => _settings.Mode == GameMode.PlayerVsComputer;
+
+	private bool IsComputerTurn =>
+		VsComputer && _match.Status == MatchStatus.InProgress && _match.CurrentPlayer == ComputerSide;
+
+	/// <summary>
+	/// On the computer's turn, searches for its move on a worker thread (Hard looks 8 moves ahead,
+	/// which could stall a frame on a phone), then plays it once a natural pause has passed.
+	/// A generation number discards a search that finishes after the match was reset.
+	/// </summary>
+	private void UpdateComputer(float dt)
+	{
+		if (_phase != Phase.Ready || !IsComputerTurn)
+			return;
+
+		if (_thinking == null)
+		{
+			var player = new ComputerPlayer(_settings.Difficulty);
+			var snapshot = _match.Board.Clone();
+			int generation = _computerGeneration;
+			_thinking = Task.Run(() => (generation, player.ChooseMove(snapshot, ComputerSide)));
+			_thinkTime = 0f;
+			RefreshUi();
+			return;
+		}
+
+		_thinkTime += dt;
+		if (!_thinking.IsCompleted || _thinkTime < MinThinkTime)
+			return;
+		var (forGeneration, column) = _thinking.Result;
+		_thinking = null;
+		if (forGeneration == _computerGeneration)
+			TryPlay(column, byComputer: true);
+	}
+
+	/// <summary>
+	/// Starts over after the mode or difficulty changes: score back to 0-0, you move first, and
+	/// any discs on the board are released. Waits for a falling or tumbling disc to finish first.
+	/// </summary>
+	private void StartNewMatch()
+	{
+		_computerGeneration++;
+		_thinking = null;
+		_wins[Player.One] = 0;
+		_wins[Player.Two] = 0;
+
+		if (_phase is Phase.Dropping or Phase.Releasing)
+		{
+			_newMatchPending = true;
+			RefreshUi();
+			return;
+		}
+		_newMatchPending = false;
+		_nextStarter = Player.One;
+
+		bool hasDiscs = false;
+		foreach (var _ in AllDiscs())
+		{
+			hasDiscs = true;
+			break;
+		}
+		if (hasDiscs)
+		{
+			_phase = Phase.RoundOver;
+			Release();
+		}
+		else
+		{
+			_match.Reset(_nextStarter);
+			_nextStarter = Match.Opponent(_nextStarter);
+			_phase = Phase.Ready;
+			RefreshUi();
+		}
 	}
 
 	// ---------------------------------------------------------------- Release
@@ -450,6 +552,8 @@ public partial class Main : Node3D
 		_nextStarter = Match.Opponent(_nextStarter);
 		_phase = Phase.Ready;
 		RefreshUi();
+		if (_newMatchPending)
+			StartNewMatch();
 	}
 
 	// ---------------------------------------------------------------- Sound
@@ -550,6 +654,12 @@ public partial class Main : Node3D
 				case "--demo-delay":
 					_demoDelay = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 					break;
+				case "--mode" when System.Enum.TryParse(value, out GameMode mode):
+					_settings.Mode = mode;
+					break;
+				case "--difficulty" when System.Enum.TryParse(value, out Difficulty difficulty):
+					_settings.Difficulty = difficulty;
+					break;
 				case "--quit-after-demo":
 					_quitAfterDemo = true;
 					break;
@@ -558,6 +668,7 @@ public partial class Main : Node3D
 					break;
 				case "--menu":
 					_openMenu = true;
+					_openDifficulty = value == "difficulty";
 					break;
 				case "--demo-spin":
 					_demoSpin = true;
@@ -595,7 +706,7 @@ public partial class Main : Node3D
 		if (!_demo)
 			return;
 		_demoTimer += dt;
-		if (_phase == Phase.Ready && _demoMoves.Count > 0 && _demoTimer > _demoDelay)
+		if (_phase == Phase.Ready && !IsComputerTurn && _demoMoves.Count > 0 && _demoTimer > _demoDelay)
 		{
 			_demoTimer = 0f;
 			TryPlay(_demoMoves.Dequeue());
@@ -630,24 +741,34 @@ public partial class Main : Node3D
 	private void RefreshUi()
 	{
 		var pieces = Styles.Pieces(_settings.Pieces);
-		_hud.SetScore($"{pieces.NameOne}  {_wins[Player.One]}   —   {_wins[Player.Two]}  {pieces.NameTwo}");
+		// Against the computer, "You" and "Computer" read better than the piece colours.
+		string NameOf(Player player) => !VsComputer ? pieces.NameOf(player) : player == ComputerSide ? "Computer" : "You";
+		_hud.SetScore($"{NameOf(Player.One)}  {_wins[Player.One]}   —   {_wins[Player.Two]}  {NameOf(Player.Two)}");
 		_hud.SetClearVisible(_phase == Phase.RoundOver);
 
+		var current = _match.CurrentPlayer;
 		switch (_phase)
 		{
 			case Phase.Releasing:
 				_hud.SetStatus("Releasing…", Palette.TextMuted);
 				break;
 			case Phase.RoundOver when _match.Status == MatchStatus.Won:
-				_hud.SetStatus($"{pieces.NameOf(_match.Winner)} wins!", pieces.UiColorOf(_match.Winner));
+				string winner = NameOf(_match.Winner);
+				_hud.SetStatus(winner == "You" ? "You win!" : $"{winner} wins!", pieces.UiColorOf(_match.Winner));
 				break;
 			case Phase.RoundOver:
 				_hud.SetStatus("It's a draw", Palette.Text);
 				break;
 			case Phase.Dropping:
 				break;
+			case Phase.Ready when VsComputer && current == ComputerSide:
+				_hud.SetStatus("Computer is thinking…", pieces.UiColorOf(current));
+				break;
+			case Phase.Ready when VsComputer:
+				_hud.SetStatus("Your turn", pieces.UiColorOf(current));
+				break;
 			default:
-				_hud.SetStatus($"{pieces.NameOf(_match.CurrentPlayer)}'s turn", pieces.UiColorOf(_match.CurrentPlayer));
+				_hud.SetStatus($"{NameOf(current)}'s turn", pieces.UiColorOf(current));
 				break;
 		}
 	}

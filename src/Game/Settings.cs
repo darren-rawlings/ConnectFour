@@ -1,3 +1,4 @@
+using ConnectFour.Core;
 using Godot;
 
 namespace ConnectFour.Game;
@@ -11,6 +12,8 @@ public sealed class Settings
 	public Style Board { get; set; } = Style.Plastic;
 	public Style Pieces { get; set; } = Style.Plastic;
 	public Backdrop Backdrop { get; set; } = Backdrop.Midnight;
+	public GameMode Mode { get; set; } = GameMode.PlayerVsPlayer;
+	public Difficulty Difficulty { get; set; } = Difficulty.Medium;
 	public bool Muted { get; set; }
 
 	public static Settings Load()
@@ -22,6 +25,8 @@ public sealed class Settings
 		settings.Board = ReadStyle(file, "board", settings.Board);
 		settings.Pieces = ReadStyle(file, "pieces", settings.Pieces);
 		settings.Backdrop = ReadEnum(file, "backdrop", settings.Backdrop);
+		settings.Mode = ReadEnum(file, "mode", settings.Mode);
+		settings.Difficulty = ReadEnum(file, "difficulty", settings.Difficulty);
 		settings.Muted = file.GetValue(Section, "muted", false).AsBool();
 		return settings;
 	}
@@ -32,6 +37,8 @@ public sealed class Settings
 		file.SetValue(Section, "board", Board.ToString());
 		file.SetValue(Section, "pieces", Pieces.ToString());
 		file.SetValue(Section, "backdrop", Backdrop.ToString());
+		file.SetValue(Section, "mode", Mode.ToString());
+		file.SetValue(Section, "difficulty", Difficulty.ToString());
 		file.SetValue(Section, "muted", Muted);
 		file.Save(Path);
 	}

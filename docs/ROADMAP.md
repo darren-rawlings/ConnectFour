@@ -20,9 +20,9 @@
 - [ ] Custom font, title screen
 - [ ] App icon
 
-## v0.3: Single player
-- [ ] AI opponent (Easy: random+block; Medium: minimax depth 4; Hard: minimax + alpha-beta depth 8)
-- [ ] Mode select: vs Friend / vs Computer
+## v0.3: Single player ✅
+- [x] Computer opponent: Easy (takes wins, usually blocks, else random), Medium (looks 4 moves ahead), Hard (8 moves ahead, alpha-beta pruning); searches on a worker thread
+- [x] "Player vs Player" / "Player vs Computer" buttons between Style and Sound; picking the computer pops up Easy / Medium / Hard
 
 ## v0.4: Ship
 - [x] Decide distribution: phone-only, Android + AdMob (see "Hosting" below)

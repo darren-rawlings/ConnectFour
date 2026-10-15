@@ -25,12 +25,12 @@ Open the folder in Godot and press **F5**, or use the **Play ConnectFour** launc
 Godot.exe --path . -- --demo --board=Wood --pieces=Metal --spin=35
 ```
 
-`--demo[=3,3,4,4,5,5,6]` plays the moves, then releases the pieces. `--board` and `--pieces` take `Plastic`, `Wood`, `Metal`, `Glass` or `Marble`, and `--backdrop` takes `Midnight`, `GamesRoom`, `Sunset`, `Daylight` or `Dojo`. None of these are saved. `--menu` opens the Style menu on launch. `--spin` is in degrees, and `--demo-spin` spins the finished board before the release. `--demo-delay=0` plays moves as fast as the game allows. Demo runs always have sound on. `--record-audio=path.wav` saves the live mix, which catches real-time audio problems that movie-maker recordings (mixed offline) can miss. Add `--write-movie out.png --fixed-fps 60 --quit-after 840` before the `--` to capture frames and audio.
+`--demo[=3,3,4,4,5,5,6]` plays the moves, then releases the pieces. `--board` and `--pieces` take `Plastic`, `Wood`, `Metal`, `Glass` or `Marble`, and `--backdrop` takes `Midnight`, `GamesRoom`, `Sunset`, `Daylight` or `Dojo`. None of these are saved. `--menu` opens the Style menu on launch (`--menu=difficulty` opens the difficulty pop-up). `--mode=PlayerVsComputer` and `--difficulty=Easy|Medium|Hard` set the opponent; in a demo, the listed moves are yours and the computer answers. `--spin` is in degrees, and `--demo-spin` spins the finished board before the release. `--demo-delay=0` plays moves as fast as the game allows. Demo runs always have sound on. `--record-audio=path.wav` saves the live mix, which catches real-time audio problems that movie-maker recordings (mixed offline) can miss. Add `--write-movie out.png --fixed-fps 60 --quit-after 840` before the `--` to capture frames and audio.
 
 ## Layout
 
 ```
-src/Core/     Pure C#, no Godot types, fully unit-tested: game rules and the sound synthesiser
+src/Core/     Pure C#, no Godot types, fully unit-tested: game rules, computer opponent, sound synthesiser
 src/Game/     Godot nodes: 3D board, physics discs, materials, audio, HUD
 shaders/      Procedural material shaders (plastic, wood, metal, marble, glass)
 scenes/       .tscn scenes

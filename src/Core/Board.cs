@@ -80,6 +80,14 @@ public sealed class Board
 		return result;
 	}
 
+	/// <summary>An independent copy, e.g. for the computer to search on another thread.</summary>
+	public Board Clone()
+	{
+		var copy = new Board { DiscCount = DiscCount };
+		System.Array.Copy(_cells, copy._cells, _cells.Length);
+		return copy;
+	}
+
 	public void Clear()
 	{
 		System.Array.Clear(_cells);
