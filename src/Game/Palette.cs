@@ -2,13 +2,9 @@ using Godot;
 
 namespace ConnectFour.Game;
 
-/// <summary>Interface colours. Board and piece colours live with their materials in <see cref="Styles"/>.</summary>
+/// <summary>Interface colours. Board and piece colours live in <see cref="Styles"/>, backdrops in <see cref="Scenery"/>.</summary>
 public static class Palette
 {
-	public static readonly Color SkyTop = new("1d2463");
-	public static readonly Color SkyHorizon = new("3a4590");
-	public static readonly Color Ground = new("0b0d24");
-
 	public static readonly Color Text = new("f1f5ff");
 	public static readonly Color TextMuted = new("9aa6d8");
 	public static readonly Color Accent = new("3b6cf0");

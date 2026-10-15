@@ -10,6 +10,7 @@ public sealed class Settings
 
 	public Style Board { get; set; } = Style.Plastic;
 	public Style Pieces { get; set; } = Style.Plastic;
+	public Backdrop Backdrop { get; set; } = Backdrop.Midnight;
 	public bool Muted { get; set; }
 
 	public static Settings Load()
@@ -20,6 +21,7 @@ public sealed class Settings
 			return settings;
 		settings.Board = ReadStyle(file, "board", settings.Board);
 		settings.Pieces = ReadStyle(file, "pieces", settings.Pieces);
+		settings.Backdrop = ReadEnum(file, "backdrop", settings.Backdrop);
 		settings.Muted = file.GetValue(Section, "muted", false).AsBool();
 		return settings;
 	}
@@ -29,13 +31,20 @@ public sealed class Settings
 		var file = new ConfigFile();
 		file.SetValue(Section, "board", Board.ToString());
 		file.SetValue(Section, "pieces", Pieces.ToString());
+		file.SetValue(Section, "backdrop", Backdrop.ToString());
 		file.SetValue(Section, "muted", Muted);
 		file.Save(Path);
 	}
 
 	private static Style ReadStyle(ConfigFile file, string key, Style fallback)
 	{
+		var style = ReadEnum(file, key, fallback);
+		return style == Style.Table ? fallback : style;
+	}
+
+	private static T ReadEnum<T>(ConfigFile file, string key, T fallback) where T : struct, System.Enum
+	{
 		string name = file.GetValue(Section, key, fallback.ToString()).AsString();
-		return System.Enum.TryParse(name, out Style style) && style != Style.Table ? style : fallback;
+		return System.Enum.TryParse(name, out T value) && System.Enum.IsDefined(value) ? value : fallback;
 	}
 }

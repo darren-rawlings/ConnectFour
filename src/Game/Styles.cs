@@ -32,6 +32,8 @@ public sealed record Look(
 	public const int MetalPattern = 2;
 	public const int MarblePattern = 3;
 	public const int GlassPattern = 4;
+	public const int PlankPattern = 5;
+	public const int TatamiPattern = 6;
 
 	public bool IsGlass => Pattern == GlassPattern;
 }
@@ -90,9 +92,6 @@ public static class Styles
 			new(Look.PlasticPattern, new("facc15"), new("ca8a04"), 0.28f),
 			new("ef4444"), new("facc15")),
 	};
-
-	// Dark baize, like a games table; soft so discs land with a muted thock.
-	public static readonly Look TableLook = new(Look.PlasticPattern, new("1b2240"), new("141a33"), 0.95f, Scale: 3f);
 
 	public static ImpactRecipe Impact(Style style) => style switch
 	{

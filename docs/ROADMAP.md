@@ -40,4 +40,4 @@
 Testing: run in the Godot editor (portrait 540x960 window, touch emulated from mouse), then one-click deploy to a real Android phone over USB.
 
 ## Backlog
-- [ ] Background style menu (scenes behind the board, e.g. games room, night sky, dojo), alongside the board and piece styles
+- [x] Background style menu: Midnight, Games Room, Sunset, Daylight, Dojo (sky, lighting and tabletop; the table also sets the landing sound)

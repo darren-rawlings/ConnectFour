@@ -46,6 +46,7 @@ public partial class Main : Node3D
 
 	private Camera3D _camera = null!;
 	private BoardRig _rig = null!;
+	private Scenery _scenery = null!;
 	private Node3D _looseRoot = null!;
 	private SoundPool _sound = null!;
 	private Hud _hud = null!;
@@ -70,6 +71,7 @@ public partial class Main : Node3D
 	private readonly Queue<int> _demoMoves = new();
 	private bool _demo;
 	private bool _demoSpin;
+	private bool _openMenu;
 	private float _demoDelay = 0.35f;
 	private string? _recordAudioPath;
 	private AudioEffectRecord? _recorder;
@@ -93,7 +95,7 @@ public partial class Main : Node3D
 
 		_hud = new Hud();
 		AddChild(_hud);
-		_hud.Build(_settings.Board, _settings.Pieces, _settings.Muted);
+		_hud.Build(_settings.Board, _settings.Pieces, _settings.Backdrop, _settings.Muted);
 		_hud.ClearPressed += Release;
 		_hud.BoardChosen += style =>
 		{
@@ -109,12 +111,20 @@ public partial class Main : Node3D
 				disc.ApplyStyle(style);
 			RefreshUi();
 		};
+		_hud.BackdropChosen += backdrop =>
+		{
+			_settings.Backdrop = backdrop;
+			_settings.Save();
+			_scenery.Apply(backdrop);
+		};
 		_hud.MuteToggled += muted =>
 		{
 			_settings.Muted = muted;
 			_settings.Save();
 			AudioServer.SetBusMute(0, muted);
 		};
+		if (_openMenu)
+			_hud.OpenMenu();
 		RefreshUi();
 	}
 
@@ -122,38 +132,9 @@ public partial class Main : Node3D
 
 	private void BuildWorld()
 	{
-		var sky = new ProceduralSkyMaterial
-		{
-			SkyTopColor = Palette.SkyTop,
-			SkyHorizonColor = Palette.SkyHorizon,
-			GroundHorizonColor = Palette.SkyHorizon,
-			GroundBottomColor = Palette.Ground,
-			SunAngleMax = 30f,
-		};
-		var environment = new Godot.Environment
-		{
-			BackgroundMode = Godot.Environment.BGMode.Sky,
-			Sky = new Sky { SkyMaterial = sky },
-			AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-			AmbientLightEnergy = 0.6f,
-			ReflectedLightSource = Godot.Environment.ReflectionSource.Sky,
-			TonemapMode = Godot.Environment.ToneMapper.Filmic,
-		};
-		AddChild(new WorldEnvironment { Environment = environment });
-
-		AddChild(new DirectionalLight3D
-		{
-			RotationDegrees = new Vector3(-50, 30, 0),
-			LightEnergy = 1.3f,
-			ShadowEnabled = true,
-		});
-		AddChild(new OmniLight3D
-		{
-			Position = new Vector3(-6, 6, 7),
-			OmniRange = 25,
-			LightEnergy = 0.6f,
-			LightColor = new Color("b9c8ff"),
-		});
+		_scenery = new Scenery();
+		AddChild(_scenery);
+		_scenery.Build(_settings.Backdrop, TableY);
 
 		// Fixed horizontal FOV keeps the whole board in frame on any phone aspect ratio.
 		_camera = new Camera3D
@@ -164,20 +145,6 @@ public partial class Main : Node3D
 		};
 		AddChild(_camera);
 		_camera.LookAt(new Vector3(0, 2.0f, 0));
-
-		var table = new StaticBody3D { Position = new Vector3(0, TableY, 0) };
-		table.AddToGroup("table");
-		table.AddChild(new MeshInstance3D
-		{
-			Mesh = new PlaneMesh { Size = new Vector2(60, 60) },
-			MaterialOverride = MaterialFactory.For(Styles.TableLook, isDisc: false),
-		});
-		table.AddChild(new CollisionShape3D
-		{
-			Shape = new BoxShape3D { Size = new Vector3(60, 1, 60) },
-			Position = new Vector3(0, -0.5f, 0),
-		});
-		AddChild(table);
 
 		_rig = new BoardRig();
 		AddChild(_rig);
@@ -504,7 +471,7 @@ public partial class Main : Node3D
 		{
 			Disc peerDisc => peerDisc.Style,
 			Node node when node.IsInGroup(BoardRig.Group) => _rig.Style,
-			Node node when node.IsInGroup("table") => Style.Table,
+			Node node when node.IsInGroup(Scenery.TableGroup) => _scenery.TableSound,
 			_ => null,
 		};
 		if (surface is { } s && s != disc.Style)
@@ -520,7 +487,7 @@ public partial class Main : Node3D
 	// ---------------------------------------------------------------- Developer demo
 
 	/// <summary>
-	/// Optional user args after `--`: `--demo[=3,3,4,4,5,5,6]`, `--board=Wood`, `--pieces=Metal`,
+	/// Optional user args after `--`: `--demo[=3,3,4,4,5,5,6]`, `--board=Wood`, `--pieces=Metal`, `--backdrop=Sunset`,
 	/// `--spin=35` (degrees), `--demo-spin` (spin the board before releasing), `--demo-delay=0.35` (pause before each
 	/// demo move), `--record-audio=path.wav` (save the live mix on exit). Style overrides are not saved. Used to record test footage.
 	/// </summary>
@@ -541,6 +508,9 @@ public partial class Main : Node3D
 				case "--board" when System.Enum.TryParse(value, out Style board):
 					_settings.Board = board;
 					break;
+				case "--backdrop" when System.Enum.TryParse(value, out Backdrop backdrop):
+					_settings.Backdrop = backdrop;
+					break;
 				case "--pieces" when System.Enum.TryParse(value, out Style pieces):
 					_settings.Pieces = pieces;
 					break;
@@ -549,6 +519,9 @@ public partial class Main : Node3D
 					break;
 				case "--demo-delay":
 					_demoDelay = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--menu":
+					_openMenu = true;
 					break;
 				case "--demo-spin":
 					_demoSpin = true;

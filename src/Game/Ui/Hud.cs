@@ -12,6 +12,7 @@ public partial class Hud : CanvasLayer
 	public event Action? ClearPressed;
 	public event Action<Style>? BoardChosen;
 	public event Action<Style>? PiecesChosen;
+	public event Action<Backdrop>? BackdropChosen;
 	public event Action<bool>? MuteToggled;
 
 	private Label _score = null!;
@@ -21,7 +22,7 @@ public partial class Hud : CanvasLayer
 	private Button _mute = null!;
 	private Control _menu = null!;
 
-	public void Build(Style board, Style pieces, bool muted)
+	public void Build(Style board, Style pieces, Backdrop backdrop, bool muted)
 	{
 		var title = MakeLabel("CONNECT FOUR", 60, Palette.Text);
 		Anchor(title, Control.LayoutPreset.TopWide, top: 60, bottom: 140);
@@ -60,12 +61,14 @@ public partial class Hud : CanvasLayer
 		SetMuteText(muted);
 		AddChild(_mute);
 
-		_menu = BuildMenu(board, pieces);
+		_menu = BuildMenu(board, pieces, backdrop);
 		_menu.Visible = false;
 		AddChild(_menu);
 	}
 
 	public bool MenuOpen => _menu.Visible;
+
+	public void OpenMenu() => _menu.Visible = true;
 
 	public void SetStatus(string text, Color color)
 	{
@@ -87,7 +90,7 @@ public partial class Hud : CanvasLayer
 
 	private void SetMuteText(bool muted) => _mute.Text = muted ? "Sound: Off" : "Sound: On";
 
-	private Control BuildMenu(Style board, Style pieces)
+	private Control BuildMenu(Style board, Style pieces, Backdrop backdrop)
 	{
 		// A light scrim blocks taps on the board while still showing style changes live behind it.
 		var scrim = new ColorRect { Color = new Color(0, 0, 0, 0.25f), MouseFilter = Control.MouseFilterEnum.Stop };
@@ -98,7 +101,7 @@ public partial class Hud : CanvasLayer
 		box.SetCornerRadiusAll(28);
 		box.SetContentMarginAll(28);
 		panel.AddThemeStyleboxOverride("panel", box);
-		Anchor(panel, Control.LayoutPreset.BottomWide, left: 24, right: -24, top: -560, bottom: -24);
+		Anchor(panel, Control.LayoutPreset.BottomWide, left: 24, right: -24, top: -790, bottom: -24);
 		scrim.AddChild(panel);
 
 		var column = new VBoxContainer();
@@ -106,9 +109,11 @@ public partial class Hud : CanvasLayer
 		panel.AddChild(column);
 
 		column.AddChild(MakeLabel("Board", 30, Palette.TextMuted));
-		column.AddChild(MakeChoices(board, Styles.BoardName, s => BoardChosen?.Invoke(s)));
+		column.AddChild(MakeChoices(Styles.Choices, board, Styles.BoardName, s => BoardChosen?.Invoke(s)));
 		column.AddChild(MakeLabel("Pieces", 30, Palette.TextMuted));
-		column.AddChild(MakeChoices(pieces, s => Styles.Pieces(s).Name, s => PiecesChosen?.Invoke(s)));
+		column.AddChild(MakeChoices(Styles.Choices, pieces, s => Styles.Pieces(s).Name, s => PiecesChosen?.Invoke(s)));
+		column.AddChild(MakeLabel("Background", 30, Palette.TextMuted));
+		column.AddChild(MakeChoices(Scenery.Choices, backdrop, b => Scenery.Looks(b).Name, b => BackdropChosen?.Invoke(b)));
 
 		var done = MakeButton("Done", 30, Palette.Accent);
 		done.CustomMinimumSize = new Vector2(0, 70);
@@ -117,21 +122,22 @@ public partial class Hud : CanvasLayer
 		return scrim;
 	}
 
-	private static GridContainer MakeChoices(Style selected, Func<Style, string> name, Action<Style> chosen)
+	private static GridContainer MakeChoices<T>(T[] choices, T selected, Func<T, string> name, Action<T> chosen)
+		where T : struct, Enum
 	{
 		var grid = new GridContainer { Columns = 3 };
 		grid.AddThemeConstantOverride("h_separation", 12);
 		grid.AddThemeConstantOverride("v_separation", 12);
 		var group = new ButtonGroup();
-		foreach (var style in Styles.Choices)
+		foreach (var choice in choices)
 		{
-			var button = MakeButton(name(style), 26, Palette.ButtonDark);
+			var button = MakeButton(name(choice), 26, Palette.ButtonDark);
 			button.ToggleMode = true;
 			button.ButtonGroup = group;
-			button.ButtonPressed = style == selected;
+			button.ButtonPressed = choice.Equals(selected);
 			button.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 			button.CustomMinimumSize = new Vector2(0, 64);
-			button.Pressed += () => chosen(style);
+			button.Pressed += () => chosen(choice);
 			grid.AddChild(button);
 		}
 		return grid;
@@ -144,6 +150,9 @@ public partial class Hud : CanvasLayer
 		label.AddThemeColorOverride("font_color", color);
 		label.AddThemeColorOverride("font_shadow_color", new Color(0, 0, 0, 0.5f));
 		label.AddThemeConstantOverride("shadow_offset_y", 3);
+		// A soft outline keeps text readable on every backdrop, from midnight to daylight.
+		label.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.55f));
+		label.AddThemeConstantOverride("outline_size", 8);
 		return label;
 	}
 

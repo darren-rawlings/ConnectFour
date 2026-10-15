@@ -4,7 +4,7 @@ render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_sc
 
 #include "res://shaders/noise.gdshaderinc"
 
-// 0 plastic, 1 wood, 2 brushed metal, 3 marble. Must match Look in Styles.cs.
+// 0 plastic, 1 wood, 2 brushed metal, 3 marble, 5 planks, 6 tatami. Must match Look in Styles.cs.
 uniform int pattern = 0;
 uniform vec3 color_a : source_color = vec3(0.18, 0.37, 0.91);
 uniform vec3 color_b : source_color = vec3(0.11, 0.23, 0.61);
@@ -49,6 +49,23 @@ void fragment() {
 		float vein = pow(1.0 - v, 12.0) * 0.9 + pow(1.0 - v, 4.0) * 0.25;
 		float cloud = fbm(p * 3.1 + vec3(5.2));
 		col = mix(color_a, color_b, clamp(vein + (cloud - 0.5) * 0.25, 0.0, 1.0));
+	} else if (pattern == 5) {
+		// Planks (tables): grain runs along X, boards are separated by dark seams along Z,
+		// and each board gets its own shade and grain offset.
+		float board = floor(p.z * 1.1);
+		float along = fract(p.z * 1.1);
+		float shade = hash13(vec3(board, 3.7, 1.9));
+		float grain = fract(p.z * 9.0 + fbm(vec3(p.x * 0.35, board * 7.0, 0.0)) * 3.0);
+		float fibre = vnoise(vec3(p.x * 1.5, p.z * 60.0, board));
+		col = mix(color_a, color_b, clamp(smoothstep(0.6, 0.95, grain) * 0.7 + fibre * 0.25 + shade * 0.35, 0.0, 1.0));
+		col *= mix(0.45, 1.0, smoothstep(0.0, 0.025, along) * smoothstep(1.0, 0.975, along));
+	} else if (pattern == 6) {
+		// Tatami: tightly woven rush strands with a dark cloth border along each mat's long edge.
+		float strand = smoothstep(0.2, 0.5, abs(fract(p.z * 12.0) - 0.5));
+		float weave = vnoise(vec3(p.x * 4.0, p.z * 12.0, 0.0));
+		col = mix(color_a, color_b, clamp(strand * 0.7 + weave * 0.3, 0.0, 1.0));
+		float mat = fract(p.z * 0.33);
+		col = mix(col, vec3(0.13, 0.11, 0.09), step(mat, 0.045));
 	} else {
 		// Plastic: almost flat, with a faint speckle so it doesn't look like a render error.
 		col *= 0.97 + 0.03 * vnoise(p * 30.0);
