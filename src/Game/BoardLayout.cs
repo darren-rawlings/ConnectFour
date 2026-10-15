@@ -28,8 +28,11 @@ public static class BoardLayout
 	/// <summary>Height of the sliding bar that holds the discs in; its top is at y = 0.</summary>
 	public const float TrayHeight = 0.16f;
 
-	/// <summary>Clearance between the bottom of the board and the table, so released discs can fall out.</summary>
-	public const float FootHeight = 1.25f;
+	/// <summary>
+	/// Clearance between the bottom of the board and the table, so released discs can fall out.
+	/// About two rows high: with less, released discs could pile up under the board and stay stuck.
+	/// </summary>
+	public const float FootHeight = 1.25f + RowPitch;
 
 	/// <summary>Divider between columns, sized so discs have a small clearance on each side.</summary>
 	public const float DividerWidth = ColumnPitch - (RowPitch + 0.04f);
