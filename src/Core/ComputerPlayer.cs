@@ -13,7 +13,8 @@ public enum Difficulty
 /// <summary>
 /// Chooses moves for the computer opponent.
 /// Easy takes a win it can see, usually blocks yours, and otherwise plays at random.
-/// Medium and Hard search ahead with minimax and alpha-beta pruning (4 and 8 moves deep),
+/// Medium and Hard search ahead with minimax and alpha-beta pruning (3 and 7 moves deep;
+/// playtesting found 4 and 8 too strong),
 /// scoring unfinished positions by their open lines. Pure C#, so it can run on a worker thread.
 /// </summary>
 public sealed class ComputerPlayer
@@ -38,8 +39,8 @@ public sealed class ComputerPlayer
 
 	public int SearchDepth => Difficulty switch
 	{
-		Difficulty.Medium => 4,
-		Difficulty.Hard => 8,
+		Difficulty.Medium => 3,
+		Difficulty.Hard => 7,
 		_ => 1,
 	};
 

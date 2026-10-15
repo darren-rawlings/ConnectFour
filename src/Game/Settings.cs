@@ -16,6 +16,9 @@ public sealed class Settings
 	public Difficulty Difficulty { get; set; } = Difficulty.Medium;
 	public bool Muted { get; set; }
 
+	/// <summary>Finished games since the last between-games ad; see <see cref="AdSchedule"/>.</summary>
+	public int GamesSinceAd { get; set; }
+
 	public static Settings Load()
 	{
 		var settings = new Settings();
@@ -28,6 +31,7 @@ public sealed class Settings
 		settings.Mode = ReadEnum(file, "mode", settings.Mode);
 		settings.Difficulty = ReadEnum(file, "difficulty", settings.Difficulty);
 		settings.Muted = file.GetValue(Section, "muted", false).AsBool();
+		settings.GamesSinceAd = file.GetValue(Section, "games_since_ad", 0).AsInt32();
 		return settings;
 	}
 
@@ -40,6 +44,7 @@ public sealed class Settings
 		file.SetValue(Section, "mode", Mode.ToString());
 		file.SetValue(Section, "difficulty", Difficulty.ToString());
 		file.SetValue(Section, "muted", Muted);
+		file.SetValue(Section, "games_since_ad", GamesSinceAd);
 		file.Save(Path);
 	}
 

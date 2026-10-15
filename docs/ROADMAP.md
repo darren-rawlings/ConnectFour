@@ -21,7 +21,7 @@
 - [ ] App icon
 
 ## v0.3: Single player ✅
-- [x] Computer opponent: Easy (takes wins, usually blocks, else random), Medium (looks 4 moves ahead), Hard (8 moves ahead, alpha-beta pruning); searches on a worker thread
+- [x] Computer opponent: Easy (takes wins, usually blocks, else random), Medium (looks 3 moves ahead), Hard (7 moves ahead, alpha-beta pruning); searches on a worker thread. Each was lowered by one move after playtesting
 - [x] "Player vs Player" / "Player vs Computer" buttons between Style and Sound; picking the computer pops up Easy / Medium / Hard
 
 ## v0.4: Ship
@@ -30,7 +30,9 @@
 - [ ] Landing page
 
 ## v1.0: Monetise
-- [ ] Ads integration
+- [x] Ad flow: a between-games ad after every 5th finished game (count saved), and Undo (vs computer only) behind a rewarded ad. Desktop shows a stand-in ad screen
+- [ ] Real AdMob ads on Android (Google test ads first, then Darren's own AdMob account and ad unit IDs)
+- [ ] Decide the audience (general vs. kids). Kids means Google Play Families policy rules for ads
 - [ ] Dedicated domain, host site, and support email
 - [ ] Privacy policy (required for ads)
 

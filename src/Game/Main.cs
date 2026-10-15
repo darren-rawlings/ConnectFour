@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ConnectFour.Core;
+using ConnectFour.Game.Ads;
 using ConnectFour.Game.Audio;
 using ConnectFour.Game.Ui;
 using Godot;
@@ -27,6 +28,9 @@ public partial class Main : Node3D
 
 		/// <summary>The tray is open and discs are tumbling out.</summary>
 		Releasing,
+
+		/// <summary>An ad is on screen; the game waits underneath.</summary>
+		Advert,
 	}
 
 	private const float SpinPerPixel = 0.008f;
@@ -67,6 +71,13 @@ public partial class Main : Node3D
 	private float _thinkTime;
 	private int _computerGeneration;
 	private bool _newMatchPending;
+
+	private IAdService _ads = null!;
+	private AdSchedule _adSchedule = null!;
+	private Player _roundStarter = Player.One;
+
+	/// <summary>Set when a round ends in a win or draw; cleared if Undo reopens it.</summary>
+	private bool _roundCompleted;
 	private int _hoverColumn = -1;
 
 	// Spin input: a press becomes a drag once it moves far enough, otherwise it's a tap.
@@ -77,6 +88,8 @@ public partial class Main : Node3D
 	private ulong _lastDragUsec;
 
 	// Developer demo (launch with `-- --demo`): plays scripted moves, then releases the pieces.
+	/// <summary>A "u" in the demo move list presses Undo.</summary>
+	private const int DemoUndo = -1;
 	private readonly Queue<int> _demoMoves = new();
 	private bool _demo;
 	private bool _demoSpin;
@@ -104,6 +117,11 @@ public partial class Main : Node3D
 		BuildWorld();
 		_rig.RotateY(_initialSpin);
 
+		_adSchedule ??= new AdSchedule(_settings.GamesSinceAd);
+		var ads = new PlaceholderAds { AutoClose = _demo };
+		AddChild(ads);
+		_ads = ads;
+
 		_hud = new Hud();
 		AddChild(_hud);
 		_hud.Build(_settings);
@@ -115,6 +133,7 @@ public partial class Main : Node3D
 			StartNewMatch();
 		};
 		_hud.ClearPressed += Release;
+		_hud.UndoPressed += OnUndoPressed;
 		_hud.BoardChosen += style =>
 		{
 			_settings.Board = style;
@@ -416,10 +435,92 @@ public partial class Main : Node3D
 		{
 			_phase = move is { Status: MatchStatus.Draw } ? Phase.RoundOver : Phase.Ready;
 		}
+		_roundCompleted = _phase == Phase.RoundOver;
 		DevLog.Write($"phase {_phase}");
 		RefreshUi();
 		if (_newMatchPending)
 			StartNewMatch();
+	}
+
+	// ---------------------------------------------------------------- Undo (vs computer)
+
+	/// <summary>
+	/// Undo is offered against the computer once you have a move on the board: on your turn, or
+	/// after the computer wins or the board fills. Not after you win, and not mid-drop.
+	/// </summary>
+	private bool CanUndo
+	{
+		get
+		{
+			if (!VsComputer)
+				return false;
+			int movesBeforeYours = _roundStarter == ComputerSide ? 1 : 0;
+			if (_match.MoveCount <= movesBeforeYours)
+				return false;
+			return _phase switch
+			{
+				Phase.Ready => !IsComputerTurn,
+				Phase.RoundOver => _match.Winner != Match.Opponent(ComputerSide),
+				_ => false,
+			};
+		}
+	}
+
+	/// <summary>Undo costs a rewarded ad: it only happens if the player watches it through.</summary>
+	private void OnUndoPressed()
+	{
+		if (!CanUndo)
+			return;
+		DevLog.Write("ad: rewarded (undo)");
+		var before = _phase;
+		_phase = Phase.Advert;
+		_ads.ShowRewarded(
+			rewarded: UndoLastTurn,
+			closed: () =>
+			{
+				if (_phase == Phase.Advert)
+					_phase = before;
+				RefreshUi();
+			});
+	}
+
+	/// <summary>Takes back moves until one of yours is undone (so it's your turn again).</summary>
+	private void UndoLastTurn()
+	{
+		_computerGeneration++;
+		_thinking = null;
+		if (_match.Status == MatchStatus.Won)
+			_wins[_match.Winner]--;
+		foreach (var disc in _discs)
+		{
+			if (disc != null)
+				disc.Mesh.MaterialOverlay = null;
+		}
+
+		var you = Match.Opponent(ComputerSide);
+		while (_match.MoveCount > 0)
+		{
+			var mover = _match.LastMover;
+			if (_match.Undo() is { } cell)
+				RemoveDisc(cell);
+			if (mover == you)
+				break;
+		}
+		_roundCompleted = false;
+		_phase = Phase.Ready;
+		DevLog.Write($"undo: {_match.MoveCount} moves left, {_match.CurrentPlayer} to play");
+	}
+
+	/// <summary>Lifts an undone disc off the board: it shrinks away and is removed.</summary>
+	private void RemoveDisc(Cell cell)
+	{
+		var disc = _discs[cell.Column, cell.Row];
+		_discs[cell.Column, cell.Row] = null;
+		if (disc == null)
+			return;
+		var tween = CreateTween();
+		tween.TweenProperty(disc.Mesh, "scale", Vector3.One * 0.01f, 0.25f).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.In);
+		tween.Finished += disc.QueueFree;
 	}
 
 	// ---------------------------------------------------------------- Computer opponent
@@ -436,7 +537,7 @@ public partial class Main : Node3D
 		VsComputer && _match.Status == MatchStatus.InProgress && _match.CurrentPlayer == ComputerSide;
 
 	/// <summary>
-	/// On the computer's turn, searches for its move on a worker thread (Hard looks 8 moves ahead,
+	/// On the computer's turn, searches for its move on a worker thread (Hard looks 7 moves ahead,
 	/// which could stall a frame on a phone), then plays it once a natural pause has passed.
 	/// A generation number discards a search that finishes after the match was reset.
 	/// </summary>
@@ -477,6 +578,7 @@ public partial class Main : Node3D
 	/// </summary>
 	private void StartNewMatch()
 	{
+		_roundCompleted = false;
 		_computerGeneration++;
 		_thinking = null;
 		_wins[Player.One] = 0;
@@ -504,11 +606,18 @@ public partial class Main : Node3D
 		}
 		else
 		{
-			_match.Reset(_nextStarter);
-			_nextStarter = Match.Opponent(_nextStarter);
+			BeginRound();
 			_phase = Phase.Ready;
 			RefreshUi();
 		}
+	}
+
+	/// <summary>Clears the rules board for a new round; the starting player alternates.</summary>
+	private void BeginRound()
+	{
+		_roundStarter = _nextStarter;
+		_match.Reset(_nextStarter);
+		_nextStarter = Match.Opponent(_nextStarter);
 	}
 
 	// ---------------------------------------------------------------- Release
@@ -554,9 +663,31 @@ public partial class Main : Node3D
 		_tipped.Clear();
 		_rig.CloseTray();
 
-		_match.Reset(_nextStarter);
-		_nextStarter = Match.Opponent(_nextStarter);
+		BeginRound();
 		_phase = Phase.Ready;
+
+		// Every fifth finished game, show an ad at this natural break, before the next round.
+		// Rounds abandoned by switching mode don't count.
+		if (_roundCompleted && !_newMatchPending)
+		{
+			_roundCompleted = false;
+			bool adDue = _adSchedule.GameFinished();
+			_settings.GamesSinceAd = _adSchedule.GamesSinceAd;
+			if (!_demo)
+				_settings.Save();
+			if (adDue)
+			{
+				DevLog.Write("ad: between-games interstitial");
+				_phase = Phase.Advert;
+				RefreshUi();
+				_ads.ShowInterstitial(() =>
+				{
+					_phase = Phase.Ready;
+					RefreshUi();
+				});
+				return;
+			}
+		}
 		RefreshUi();
 		if (_newMatchPending)
 			StartNewMatch();
@@ -643,7 +774,7 @@ public partial class Main : Node3D
 					_demo = true;
 					_settings.Muted = false; // Test runs always record sound; not saved.
 					foreach (string column in (value == "" ? "3,3,4,4,5,5,6" : value).Split(','))
-						_demoMoves.Enqueue(int.Parse(column));
+						_demoMoves.Enqueue(column == "u" ? DemoUndo : int.Parse(column));
 					break;
 				case "--board" when System.Enum.TryParse(value, out Style board):
 					_settings.Board = board;
@@ -665,6 +796,9 @@ public partial class Main : Node3D
 					break;
 				case "--difficulty" when System.Enum.TryParse(value, out Difficulty difficulty):
 					_settings.Difficulty = difficulty;
+					break;
+				case "--games-since-ad":
+					_adSchedule = new AdSchedule(int.Parse(value));
 					break;
 				case "--quit-after-demo":
 					_quitAfterDemo = true;
@@ -712,10 +846,15 @@ public partial class Main : Node3D
 		if (!_demo)
 			return;
 		_demoTimer += dt;
-		if (_phase == Phase.Ready && !IsComputerTurn && _demoMoves.Count > 0 && _demoTimer > _demoDelay)
+		bool undoNext = _demoMoves.Count > 0 && _demoMoves.Peek() == DemoUndo;
+		if ((_phase == Phase.Ready && !IsComputerTurn || _phase == Phase.RoundOver && undoNext) && _demoMoves.Count > 0 && _demoTimer > _demoDelay)
 		{
 			_demoTimer = 0f;
-			TryPlay(_demoMoves.Dequeue());
+			int next = _demoMoves.Dequeue();
+			if (next == DemoUndo)
+				OnUndoPressed();
+			else
+				TryPlay(next);
 		}
 		else if (_phase == Phase.RoundOver && _demoSpin && _demoTimer > 0.5f)
 		{
@@ -751,10 +890,13 @@ public partial class Main : Node3D
 		string NameOf(Player player) => !VsComputer ? pieces.NameOf(player) : player == ComputerSide ? "Computer" : "You";
 		_hud.SetScore($"{NameOf(Player.One)}  {_wins[Player.One]}   —   {_wins[Player.Two]}  {NameOf(Player.Two)}");
 		_hud.SetClearVisible(_phase == Phase.RoundOver);
+		_hud.SetUndoVisible(CanUndo);
 
 		var current = _match.CurrentPlayer;
 		switch (_phase)
 		{
+			case Phase.Advert:
+				break;
 			case Phase.Releasing:
 				_hud.SetStatus("Releasing…", Palette.TextMuted);
 				break;

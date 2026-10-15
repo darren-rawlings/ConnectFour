@@ -11,6 +11,7 @@ namespace ConnectFour.Game.Ui;
 public partial class Hud : CanvasLayer
 {
 	public event Action? ClearPressed;
+	public event Action? UndoPressed;
 	public event Action<Style>? BoardChosen;
 	public event Action<Style>? PiecesChosen;
 	public event Action<Backdrop>? BackdropChosen;
@@ -21,6 +22,7 @@ public partial class Hud : CanvasLayer
 	private Label _status = null!;
 	private Label _hint = null!;
 	private Button _clear = null!;
+	private Button _undo = null!;
 	private Button _mute = null!;
 	private Control _menu = null!;
 	private Button _pvp = null!;
@@ -50,6 +52,13 @@ public partial class Hud : CanvasLayer
 		Anchor(_clear, Control.LayoutPreset.CenterBottom, left: -190, right: 190, top: -255, bottom: -175);
 		_clear.Pressed += () => ClearPressed?.Invoke();
 		AddChild(_clear);
+
+		// Undo is only offered against the computer, and it plays a rewarded ad, so the label says so.
+		_undo = MakeButton("Undo (ad)", 22, Palette.ButtonDark);
+		Anchor(_undo, Control.LayoutPreset.BottomLeft, left: 20, right: 168, top: -190, bottom: -130);
+		_undo.Pressed += () => UndoPressed?.Invoke();
+		_undo.Visible = false;
+		AddChild(_undo);
 
 		var style = MakeButton("Style", 26, Palette.ButtonDark);
 		Anchor(style, Control.LayoutPreset.BottomLeft, left: 20, right: 160, top: -118, bottom: -58);
@@ -90,6 +99,8 @@ public partial class Hud : CanvasLayer
 	public void SetScore(string text) => _score.Text = text;
 
 	public void SetClearVisible(bool visible) => _clear.Visible = visible;
+
+	public void SetUndoVisible(bool visible) => _undo.Visible = visible;
 
 	/// <summary>The controls hint fades after the first move; it's only needed once.</summary>
 	public void HideHint()

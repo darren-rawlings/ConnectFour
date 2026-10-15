@@ -24,6 +24,11 @@ public sealed class Match
 	public Player Winner { get; private set; }
 	public MatchStatus Status { get; private set; }
 
+	private readonly List<(Cell Cell, Player Player)> _history = new();
+
+	/// <summary>Moves played this round, oldest first.</summary>
+	public int MoveCount => _history.Count;
+
 	public Match(Player startingPlayer = Player.One)
 	{
 		Reset(startingPlayer);
@@ -34,6 +39,7 @@ public sealed class Match
 		if (startingPlayer == Player.None)
 			throw new ArgumentException("A match must start with a real player.", nameof(startingPlayer));
 		Board.Clear();
+		_history.Clear();
 		CurrentPlayer = startingPlayer;
 		Winner = Player.None;
 		Status = MatchStatus.InProgress;
@@ -50,6 +56,7 @@ public sealed class Match
 
 		var player = CurrentPlayer;
 		int row = Board.Drop(column, player);
+		_history.Add((new Cell(column, row), player));
 		var winningCells = Board.FindWinThrough(column, row);
 
 		if (winningCells.Count > 0)
@@ -68,6 +75,26 @@ public sealed class Match
 
 		return new MoveResult(new Cell(column, row), player, Status, winningCells);
 	}
+
+	/// <summary>
+	/// Takes back the last move: the disc is removed, it becomes that player's turn again, and a
+	/// won or drawn round is back in progress. Returns the cell that was cleared, or null if no moves.
+	/// </summary>
+	public Cell? Undo()
+	{
+		if (_history.Count == 0)
+			return null;
+		var (cell, player) = _history[^1];
+		_history.RemoveAt(_history.Count - 1);
+		Board.RemoveTop(cell.Column);
+		CurrentPlayer = player;
+		Winner = Player.None;
+		Status = MatchStatus.InProgress;
+		return cell;
+	}
+
+	/// <summary>Who played the most recent move, or None at the start of a round.</summary>
+	public Player LastMover => _history.Count == 0 ? Player.None : _history[^1].Player;
 
 	public static Player Opponent(Player player) => player == Player.One ? Player.Two : Player.One;
 }

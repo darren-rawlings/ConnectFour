@@ -80,6 +80,23 @@ public sealed class Board
 		return result;
 	}
 
+	/// <summary>Removes the top disc of a column and returns its row, or -1 if the column is empty.</summary>
+	public int RemoveTop(int column)
+	{
+		if (column < 0 || column >= Columns)
+			return -1;
+		for (int row = Rows - 1; row >= 0; row--)
+		{
+			if (_cells[column, row] != Player.None)
+			{
+				_cells[column, row] = Player.None;
+				DiscCount--;
+				return row;
+			}
+		}
+		return -1;
+	}
+
 	/// <summary>An independent copy, e.g. for the computer to search on another thread.</summary>
 	public Board Clone()
 	{
