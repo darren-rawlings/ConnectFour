@@ -33,6 +33,8 @@ public partial class Disc : RigidBody3D
 	private float _cooldown;
 	private float _gravity;
 	private bool _lively;
+	private float _slideTarget;
+	private float _slideLevel;
 
 	public void Setup(Player player, Cell cell, Style style)
 	{
@@ -99,19 +101,34 @@ public partial class Disc : RigidBody3D
 	private void UpdatePhysicsMaterial() =>
 		PhysicsMaterialOverride = new PhysicsMaterial { Bounce = Styles.Bounce(Style) * (_lively ? 1f : 0.15f), Friction = 0.35f };
 
-	/// <summary>Sets the sliding scrape level, 0..1. Zero stops it.</summary>
+	/// <summary>Sets the sliding scrape level, 0..1. Zero fades it out.</summary>
 	public void SetSlide(float intensity)
 	{
-		if (intensity <= 0.01f)
+		_slideTarget = intensity <= 0.01f ? 0f : intensity;
+		if (_slideTarget > 0f && !_slide.Playing)
 		{
-			if (_slide.Playing)
-				_slide.Stop();
+			// Start silent and let _Process fade it in. A 3D player only applies a new volume on its
+			// next update, so starting at the default 0 dB caused a loud 60 ms burst at every drop.
+			_slideLevel = 0f;
+			_slide.VolumeDb = -80f;
+			_slide.Play((float)GD.RandRange(0.0, 0.9));
+		}
+	}
+
+	public override void _Process(double delta)
+	{
+		if (!_slide.Playing)
+			return;
+		// Glide toward the target rather than jumping, so the scrape never stops with a hard cut
+		// when the disc locks into place; it fades out over about 80 ms.
+		_slideLevel = Mathf.MoveToward(_slideLevel, _slideTarget, (float)delta * 12f);
+		if (_slideTarget == 0f && _slideLevel <= 0.005f)
+		{
+			_slide.Stop();
 			return;
 		}
-		_slide.VolumeDb = Mathf.LinearToDb(intensity * 0.3f) + SoundPool.MasterDb + Styles.GainDb(Style);
-		_slide.PitchScale = 0.85f + intensity * 0.3f;
-		if (!_slide.Playing)
-			_slide.Play((float)GD.RandRange(0.0, 0.9));
+		_slide.VolumeDb = Mathf.LinearToDb(_slideLevel * 0.3f) + SoundPool.MasterDb + Styles.GainDb(Style);
+		_slide.PitchScale = 0.85f + _slideLevel * 0.3f;
 	}
 
 	public override void _PhysicsProcess(double delta)

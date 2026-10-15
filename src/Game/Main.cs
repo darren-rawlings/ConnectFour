@@ -70,6 +70,9 @@ public partial class Main : Node3D
 	private readonly Queue<int> _demoMoves = new();
 	private bool _demo;
 	private bool _demoSpin;
+	private float _demoDelay = 0.35f;
+	private string? _recordAudioPath;
+	private AudioEffectRecord? _recorder;
 	private float _demoTimer;
 	private float _initialSpin;
 
@@ -78,6 +81,13 @@ public partial class Main : Node3D
 		_settings = Settings.Load();
 		ReadDeveloperArgs();
 		AudioServer.SetBusMute(0, _settings.Muted);
+		if (_recordAudioPath != null)
+		{
+			// Captures the live mix (not movie-maker's offline one) to check real-time audio.
+			_recorder = new AudioEffectRecord();
+			AudioServer.AddBusEffect(0, _recorder);
+			_recorder.SetRecordingActive(true);
+		}
 		BuildWorld();
 		_rig.RotateY(_initialSpin);
 
@@ -501,11 +511,18 @@ public partial class Main : Node3D
 			_sound.PlayImpact(s, position, strength * 0.6f);
 	}
 
+	public override void _ExitTree()
+	{
+		if (_recorder != null && _recordAudioPath != null)
+			_recorder.GetRecording()?.SaveToWav(_recordAudioPath);
+	}
+
 	// ---------------------------------------------------------------- Developer demo
 
 	/// <summary>
 	/// Optional user args after `--`: `--demo[=3,3,4,4,5,5,6]`, `--board=Wood`, `--pieces=Metal`,
-	/// `--spin=35` (degrees), `--demo-spin` (spin the board before releasing). Style overrides are not saved. Used to record test footage.
+	/// `--spin=35` (degrees), `--demo-spin` (spin the board before releasing), `--demo-delay=0.35` (pause before each
+	/// demo move), `--record-audio=path.wav` (save the live mix on exit). Style overrides are not saved. Used to record test footage.
 	/// </summary>
 	private void ReadDeveloperArgs()
 	{
@@ -517,6 +534,7 @@ public partial class Main : Node3D
 			{
 				case "--demo":
 					_demo = true;
+					_settings.Muted = false; // Test runs always record sound; not saved.
 					foreach (string column in (value == "" ? "3,3,4,4,5,5,6" : value).Split(','))
 						_demoMoves.Enqueue(int.Parse(column));
 					break;
@@ -525,6 +543,12 @@ public partial class Main : Node3D
 					break;
 				case "--pieces" when System.Enum.TryParse(value, out Style pieces):
 					_settings.Pieces = pieces;
+					break;
+				case "--record-audio":
+					_recordAudioPath = value;
+					break;
+				case "--demo-delay":
+					_demoDelay = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 					break;
 				case "--demo-spin":
 					_demoSpin = true;
@@ -541,7 +565,7 @@ public partial class Main : Node3D
 		if (!_demo)
 			return;
 		_demoTimer += dt;
-		if (_phase == Phase.Ready && _demoMoves.Count > 0 && _demoTimer > 0.35f)
+		if (_phase == Phase.Ready && _demoMoves.Count > 0 && _demoTimer > _demoDelay)
 		{
 			_demoTimer = 0f;
 			TryPlay(_demoMoves.Dequeue());
