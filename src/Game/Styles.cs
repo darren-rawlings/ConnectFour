@@ -97,27 +97,20 @@ public static class Styles
 	{
 		Style.Wood => new(750, new[] { 1.0, 2.57, 4.2, 6.1 }, new[] { 1.0, 0.6, 0.3, 0.15 }, 0.045, 0.7, 0.006, 0.35, 0.3),
 		Style.Metal => new(2100, new[] { 1.0, 2.756, 5.404, 8.933 }, new[] { 1.0, 0.7, 0.5, 0.3 }, 0.45, 0.3, 0.002, 0.7, 0.9),
-		Style.Glass => new(3300, new[] { 1.0, 2.32, 4.25, 6.63 }, new[] { 1.0, 0.5, 0.35, 0.2 }, 0.3, 0.25, 0.0015, 0.8, 0.7),
+		// Glass was a near-pure 3.3 kHz ring with almost no strike, and on phone speakers it all but
+		// vanished. A lower ring, stronger overtones and a sharp clink at the start carry on any speaker.
+		Style.Glass => new(2300, new[] { 1.0, 2.32, 4.25, 6.63 }, new[] { 1.0, 0.6, 0.45, 0.3 }, 0.18, 0.9, 0.004, 0.8, 0.6),
 		Style.Marble => new(1400, new[] { 1.0, 1.83, 2.9, 4.4 }, new[] { 1.0, 0.7, 0.4, 0.2 }, 0.05, 0.9, 0.005, 0.55, 0.3),
 		Style.Table => new(420, new[] { 1.0, 2.4, 3.9 }, new[] { 1.0, 0.4, 0.2 }, 0.03, 0.8, 0.008, 0.2, 0.25),
-		_ => new(1900, new[] { 1.0, 2.2, 3.7 }, new[] { 1.0, 0.5, 0.25 }, 0.035, 0.5, 0.004, 0.5, 0.3),
-	};
-
-	/// <summary>Tone of the scrape as a disc slides down a slot (noise brightness, low cut).</summary>
-	public static (double Brightness, double LowCut) Slide(Style style) => style switch
-	{
-		Style.Wood => (0.2, 0.02),
-		Style.Metal => (0.6, 0.15),
-		Style.Glass => (0.7, 0.2),
-		Style.Marble => (0.3, 0.04),
-		_ => (0.35, 0.05),
+		// Plastic rang for only ~35 ms and got lost on phone speakers; 50 ms carries without sounding woody.
+		_ => new(1900, new[] { 1.0, 2.2, 3.7 }, new[] { 1.0, 0.5, 0.25 }, 0.05, 0.5, 0.004, 0.5, 0.3),
 	};
 
 	/// <summary>Long-ringing materials are quieter per hit so a cascade doesn't get harsh.</summary>
 	public static float GainDb(Style style) => style switch
 	{
 		Style.Metal => -5f,
-		Style.Glass => -4f,
+		Style.Glass => -2f,
 		Style.Table => -2f,
 		_ => 0f,
 	};

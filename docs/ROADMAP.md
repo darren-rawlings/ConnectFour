@@ -9,7 +9,7 @@
 - [x] 3D board with physics discs that slide down the slots and stack
 - [x] Drag to spin the board (Y axis only, with inertia); tap to drop from either side
 - [x] Style menu: 5 boards (Classic, Oak, Steel, Glass, Marble) × 5 piece sets, each with procedural patterns
-- [x] Synthesised per-material sounds: impacts, piece-on-piece clacks, sliding scrape
+- [x] Synthesised per-material sounds: impacts and piece-on-piece clacks (the sliding scrape was removed: it masked landings on phone speakers)
 - [x] End of round: tray slides out and the pieces tumble onto the table
 - [x] Sound on/off; style and sound choices saved between sessions
 

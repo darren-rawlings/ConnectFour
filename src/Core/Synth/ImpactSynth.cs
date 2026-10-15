@@ -61,42 +61,6 @@ public static class ImpactSynth
 		return samples;
 	}
 
-	/// <summary>
-	/// A seamless loop of band-limited noise with a slight flutter, used for the scrape of a disc
-	/// sliding down its slot. Brightness and lowCut (0..1) shape the tone per material.
-	/// </summary>
-	public static float[] SlideLoop(double brightness, double lowCut, double seconds, int seed)
-	{
-		var rng = new Random(seed);
-		int length = (int)(seconds * SampleRate);
-		int fade = SampleRate / 20;
-		var raw = new float[length + fade];
-
-		double low = 0.0, rumble = 0.0, flutter = 0.0, flutterTarget = 0.0;
-		for (int i = 0; i < raw.Length; i++)
-		{
-			double white = rng.NextDouble() * 2.0 - 1.0;
-			low += brightness * (white - low);
-			rumble += lowCut * (low - rumble);
-			if (i % (SampleRate / 40) == 0)
-				flutterTarget = rng.NextDouble();
-			flutter += 0.002 * (flutterTarget - flutter);
-			raw[i] = (float)((low - rumble) * (0.65 + 0.35 * flutter));
-		}
-
-		// Crossfade the overshoot back into the start so the loop point is inaudible.
-		var loop = new float[length];
-		Array.Copy(raw, loop, length);
-		for (int i = 0; i < fade; i++)
-		{
-			float mix = (float)i / fade;
-			loop[i] = raw[i] * mix + raw[length + i] * (1f - mix);
-		}
-
-		Normalize(loop, 0.8f);
-		return loop;
-	}
-
 	/// <summary>Converts samples in [-1, 1] to little-endian signed 16-bit PCM.</summary>
 	public static byte[] ToPcm16(float[] samples)
 	{

@@ -37,17 +37,6 @@ public class ImpactSynthTests
 	}
 
 	[Fact]
-	public void SlideLoopIsSeamless()
-	{
-		var loop = ImpactSynth.SlideLoop(brightness: 0.35, lowCut: 0.05, seconds: 1.0, seed: 3);
-		float largestStep = 0f;
-		for (int i = 1; i < loop.Length; i++)
-			largestStep = Math.Max(largestStep, Math.Abs(loop[i] - loop[i - 1]));
-		// The jump across the loop point should be no bigger than ordinary sample-to-sample motion.
-		Assert.True(Math.Abs(loop[0] - loop[^1]) <= largestStep);
-	}
-
-	[Fact]
 	public void Pcm16IsLittleEndianAndClamped()
 	{
 		var bytes = ImpactSynth.ToPcm16(new[] { 0f, 1f, -1f, 2f });

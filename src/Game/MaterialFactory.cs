@@ -12,9 +12,10 @@ public static class MaterialFactory
 	private static readonly Shader SurfaceShader = GD.Load<Shader>("res://shaders/surface.gdshader");
 	private static readonly Shader GlassShader = GD.Load<Shader>("res://shaders/glass.gdshader");
 	private static readonly Dictionary<(Look, bool, int), ShaderMaterial> Cache = new();
-	private static ShaderMaterial? _glow;
+	private static readonly Shader FireShader = GD.Load<Shader>("res://shaders/fire.gdshader");
 
-	public static ShaderMaterial Glow => _glow ??= new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/glow.gdshader") };
+	/// <summary>A new fire overlay each call, so every burning disc can flare up on its own.</summary>
+	public static ShaderMaterial Fire() => new() { Shader = FireShader };
 
 	public static ShaderMaterial For(Look look, bool isDisc, int variant = 0)
 	{

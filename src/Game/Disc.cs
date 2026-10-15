@@ -1,14 +1,12 @@
 using System;
 using ConnectFour.Core;
-using ConnectFour.Game.Audio;
 using Godot;
 
 namespace ConnectFour.Game;
 
 /// <summary>
-/// A physical checker. It falls under (exaggerated) gravity, reports impacts so they can be heard,
-/// and plays a looping scrape while it slides. Once it settles it is frozen and parented to the
-/// board so it spins with it.
+/// A physical checker. It falls under (exaggerated) gravity and reports impacts so they can be
+/// heard. Once it settles it is frozen and parented to the board so it spins with it.
 /// </summary>
 public partial class Disc : RigidBody3D
 {
@@ -27,14 +25,11 @@ public partial class Disc : RigidBody3D
 	/// <summary>Raised with the impact speed and the body it hit (null if unknown).</summary>
 	public event Action<Disc, float, Node?>? Hit;
 
-	private readonly AudioStreamPlayer3D _slide = SoundPool.MakePlayer();
 	private readonly int _variant = GD.RandRange(0, MaterialFactory.Variants - 1);
 	private Vector3 _previousVelocity;
 	private float _cooldown;
 	private float _gravity;
 	private bool _lively;
-	private float _slideTarget;
-	private float _slideLevel;
 
 	public void Setup(Player player, Cell cell, Style style)
 	{
@@ -56,7 +51,6 @@ public partial class Disc : RigidBody3D
 			Shape = new CylinderShape3D { Radius = BoardLayout.DiscRadius, Height = BoardLayout.DiscThickness },
 			Transform = new Transform3D(upright, Vector3.Zero),
 		});
-		AddChild(_slide);
 		ApplyStyle(style);
 	}
 
@@ -92,47 +86,34 @@ public partial class Disc : RigidBody3D
 		Style = style;
 		Mesh.MaterialOverride = MaterialFactory.For(Styles.Pieces(style).LookOf(Player), isDisc: true, _variant);
 		UpdatePhysicsMaterial();
-		bool wasPlaying = _slide.Playing;
-		_slide.Stream = SoundBank.Slide(style);
-		if (wasPlaying)
-			_slide.Play();
+	}
+
+	private DiscFire? _fire;
+
+	/// <summary>Sets the disc alight: a bright flash as it catches, then it burns until put out.</summary>
+	public void Ignite(bool withLight)
+	{
+		if (_fire != null)
+			return;
+		var overlay = MaterialFactory.Fire();
+		Mesh.MaterialOverlay = overlay;
+		var tween = CreateTween();
+		tween.TweenMethod(Callable.From<float>(h => overlay.SetShaderParameter("heat", h)), 0f, 2.2f, 0.12f);
+		tween.TweenMethod(Callable.From<float>(h => overlay.SetShaderParameter("heat", h)), 2.2f, 1f, 0.4f);
+		_fire = new DiscFire(withLight);
+		AddChild(_fire);
+	}
+
+	/// <summary>Puts the fire out; the last flames drift off on their own.</summary>
+	public void Extinguish()
+	{
+		Mesh.MaterialOverlay = null;
+		_fire?.Extinguish();
+		_fire = null;
 	}
 
 	private void UpdatePhysicsMaterial() =>
 		PhysicsMaterialOverride = new PhysicsMaterial { Bounce = Styles.Bounce(Style) * (_lively ? 1f : 0.15f), Friction = 0.35f };
-
-	/// <summary>Sets the sliding scrape level, 0..1. Zero fades it out.</summary>
-	public void SetSlide(float intensity)
-	{
-		_slideTarget = intensity <= 0.01f ? 0f : intensity;
-		if (_slideTarget > 0f && !_slide.Playing)
-		{
-			// Start silent and let _Process fade it in. A 3D player only applies a new volume on its
-			// next update, so starting at the default 0 dB caused a loud 60 ms burst at every drop.
-			_slideLevel = 0f;
-			_slide.VolumeDb = -80f;
-			DevLog.Write($"slide start {Cell}");
-			_slide.Play((float)GD.RandRange(0.0, 0.9));
-		}
-	}
-
-	public override void _Process(double delta)
-	{
-		if (!_slide.Playing)
-			return;
-		// Glide toward the target rather than jumping, so the scrape never stops with a hard cut
-		// when the disc locks into place; it fades out over about 80 ms.
-		_slideLevel = Mathf.MoveToward(_slideLevel, _slideTarget, (float)delta * 12f);
-		if (_slideTarget == 0f && _slideLevel <= 0.005f)
-		{
-			_slide.Stop();
-			return;
-		}
-		// Kept well under the landing: a sustained scrape sounds louder than a short click, and on
-		// phone speakers it drowned the landings out.
-		_slide.VolumeDb = Mathf.LinearToDb(_slideLevel * 0.1f) + SoundPool.MasterDb + Styles.GainDb(Style);
-		_slide.PitchScale = 0.85f + _slideLevel * 0.3f;
-	}
 
 	public override void _PhysicsProcess(double delta)
 	{

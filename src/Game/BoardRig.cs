@@ -106,9 +106,6 @@ public partial class BoardRig : Node3D
 	/// <summary>World position of the tray's sticking-out end, for the release sound.</summary>
 	public Vector3 TrayEnd => ToGlobal(_trayHome + Vector3.Right * (GridWidth / 2f));
 
-	/// <summary>True if a board-local point is inside the slot, where a moving disc would scrape.</summary>
-	public static bool InSlot(Vector3 local) =>
-		local.Y > OuterBottom - 0.2f && local.Y < OuterTop && Mathf.Abs(local.Z) < SlotGap && Mathf.Abs(local.X) < GridWidth / 2f;
 
 	private void AddBox(StaticBody3D body, Vector3 center, Vector3 size)
 	{

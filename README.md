@@ -49,7 +49,7 @@ docs/         Design doc, roadmap, lessons learned
 Export with `Godot.exe --headless --path . --export-debug "Android" build/android/ConnectFour.apk`, then install with `adb install -r` (adb is in `C:\GameDev\Android\sdk\platform-tools`). Phones can't take launch arguments, so put the developer flags, one per line, in the app's private `files/dev_args.txt`. The game reads it once and then deletes it:
 
 ```bash
-adb shell "run-as com.darrenrawlings.connectfour sh -c 'cat > files/dev_args.txt'" < dev_args.txt
+adb shell "run-as com.renegadegames.counterfire sh -c 'cat > files/dev_args.txt'" < dev_args.txt
 ```
 
-Useful flags on a phone: `--log` (timestamped sound, settle and slow-frame events in `adb logcat -s godot:I`), `--quit-after-demo`, and `--record-audio=user://live.wav` (pull it with `adb exec-out run-as com.darrenrawlings.connectfour cat files/live.wav > live.wav`).
+Useful flags on a phone: `--log` (timestamped sound, settle and slow-frame events in `adb logcat -s godot:I`), `--quit-after-demo`, and `--record-audio=user://live.wav` (pull it with `adb exec-out run-as com.renegadegames.counterfire cat files/live.wav > live.wav`).

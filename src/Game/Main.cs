@@ -216,7 +216,7 @@ public partial class Main : Node3D
 
 	/// <summary>
 	/// Phones compile each shader the first time it is drawn, which stalls that frame; the first
-	/// win used to hitch while the glow compiled. Draw every shader for a moment at startup so
+	/// win used to hitch while its effect compiled. Draw every shader for a moment at startup so
 	/// that cost is paid up front. The discs sit full size under the table: hidden, but lit and
 	/// shadowed like real ones, so the exact same shader variants get compiled.
 	/// </summary>
@@ -226,7 +226,8 @@ public partial class Main : Node3D
 		AddChild(warm);
 		var opaque = MaterialFactory.For(Styles.Pieces(Style.Plastic).One, isDisc: true);
 		var glass = MaterialFactory.For(Styles.Pieces(Style.Glass).One, isDisc: true);
-		warm.AddChild(new MeshInstance3D { Mesh = Meshes.Disc, MaterialOverride = opaque, MaterialOverlay = MaterialFactory.Glow });
+		warm.AddChild(new MeshInstance3D { Mesh = Meshes.Disc, MaterialOverride = opaque, MaterialOverlay = MaterialFactory.Fire() });
+		warm.AddChild(new DiscFire(withLight: true));
 		warm.AddChild(new MeshInstance3D { Mesh = Meshes.Disc, MaterialOverride = glass });
 		warm.AddChild(new MeshInstance3D { Mesh = Meshes.Disc, MaterialOverride = opaque, Transparency = 0.5f });
 		GetTree().CreateTimer(0.3).Timeout += warm.QueueFree;
@@ -336,8 +337,6 @@ public partial class Main : Node3D
 		foreach (var disc in _loose)
 		{
 			var local = _rig.ToLocal(disc.GlobalPosition);
-			float speed = disc.LinearVelocity.Length();
-			disc.SetSlide(BoardRig.InSlot(local) && speed > 0.5f ? Mathf.Clamp(speed / 25f, 0f, 1f) : 0f);
 
 			// As each released disc clears the bottom of the board, tip it so it topples and scatters
 			// across the table instead of landing upright in a neat row.
@@ -426,7 +425,6 @@ public partial class Main : Node3D
 	{
 		DevLog.Write($"settle {disc.Cell} after {_fallTime:0.00}s");
 		disc.Freeze = true;
-		disc.SetSlide(0f);
 		_loose.Remove(disc);
 		_discs[disc.Cell.Column, disc.Cell.Row] = disc;
 		SyncSettledDiscs();
@@ -436,8 +434,7 @@ public partial class Main : Node3D
 		if (move is { Status: MatchStatus.Won } win)
 		{
 			_wins[win.Player]++;
-			foreach (var cell in win.WinningCells)
-				_discs[cell.Column, cell.Row]!.Mesh.MaterialOverlay = MaterialFactory.Glow;
+			SetLineAlight(win);
 			_phase = Phase.RoundOver;
 		}
 		else
@@ -449,6 +446,46 @@ public partial class Main : Node3D
 		RefreshUi();
 		if (_newMatchPending)
 			StartNewMatch();
+	}
+
+	/// <summary>Seconds for the fire to jump from one disc to the next along the winning line.</summary>
+	private const float FireSpreadDelay = 0.16f;
+
+	/// <summary>Bumped whenever the fires are put out, so a spread still on its way is cancelled.</summary>
+	private int _fireGeneration;
+
+	/// <summary>
+	/// "Counter Fire": the winning disc bursts into flame and the fire runs along the line to the
+	/// rest of the four. Only the winning disc carries a light, to keep the phone's lighting cheap.
+	/// </summary>
+	private void SetLineAlight(MoveResult win)
+	{
+		int generation = _fireGeneration;
+		foreach (var cell in win.WinningCells)
+		{
+			var disc = _discs[cell.Column, cell.Row];
+			if (disc == null)
+				continue;
+			int steps = Mathf.Max(Mathf.Abs(cell.Column - win.Cell.Column), Mathf.Abs(cell.Row - win.Cell.Row));
+			bool first = cell == win.Cell;
+			if (steps == 0)
+			{
+				disc.Ignite(withLight: first);
+				continue;
+			}
+			GetTree().CreateTimer(steps * FireSpreadDelay).Timeout += () =>
+			{
+				if (generation == _fireGeneration && IsInstanceValid(disc))
+					disc.Ignite(withLight: false);
+			};
+		}
+	}
+
+	private void PutOutFires()
+	{
+		_fireGeneration++;
+		foreach (var disc in AllDiscs())
+			disc.Extinguish();
 	}
 
 	// ---------------------------------------------------------------- Undo (vs computer)
@@ -500,11 +537,7 @@ public partial class Main : Node3D
 		_thinking = null;
 		if (_match.Status == MatchStatus.Won)
 			_wins[_match.Winner]--;
-		foreach (var disc in _discs)
-		{
-			if (disc != null)
-				disc.Mesh.MaterialOverlay = null;
-		}
+		PutOutFires();
 
 		var you = Match.Opponent(ComputerSide);
 		while (_match.MoveCount > 0)
@@ -642,9 +675,9 @@ public partial class Main : Node3D
 
 		_sound.PlayImpact(_rig.Style, _rig.TrayEnd, 0.7f);
 		_rig.OpenTray();
+		PutOutFires();
 		foreach (var disc in new List<Disc>(AllDiscs()))
 		{
-			disc.Mesh.MaterialOverlay = null;
 			disc.Lively = true;
 			disc.Freeze = false;
 			disc.Sleeping = false;
@@ -663,7 +696,6 @@ public partial class Main : Node3D
 		foreach (var disc in _loose)
 		{
 			var d = disc;
-			d.SetSlide(0f);
 			var tween = CreateTween();
 			tween.TweenProperty(d.Mesh, "scale", Vector3.One * 0.01f, 0.3f).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.In);
 			tween.Finished += d.QueueFree;

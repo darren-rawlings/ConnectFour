@@ -32,7 +32,7 @@ public partial class Hud : CanvasLayer
 	public void Build(Settings settings)
 	{
 		bool muted = settings.Muted;
-		var title = MakeLabel("CONNECT FOUR", 60, Palette.Text);
+		var title = MakeLabel("COUNTER FIRE", 60, Palette.Text);
 		Anchor(title, Control.LayoutPreset.TopWide, top: 60, bottom: 140);
 		AddChild(title);
 
