@@ -8,6 +8,8 @@
 
 config_version=5
 
+"ï»¿config_version"=5
+
 [application]
 
 config/name="ConnectFour"
@@ -29,15 +31,16 @@ window/handheld/orientation=1
 
 project/assembly_name="ConnectFour"
 
+[physics]
+
+common/physics_ticks_per_second=120
+common/max_physics_steps_per_frame=16
+3d/physics_engine="Jolt Physics"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-environment/defaults/default_clear_color=Color(0.07, 0.08, 0.2, 1)
+textures/vram_compression/import_etc2_astc=true
 anti_aliasing/quality/msaa_3d=2
-
-[physics]
-
-3d/physics_engine="Jolt Physics"
-common/physics_ticks_per_second=120
-common/max_physics_steps_per_frame=16
+environment/defaults/default_clear_color=Color(0.07, 0.08, 0.2, 1)
