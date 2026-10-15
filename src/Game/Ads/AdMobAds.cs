@@ -24,8 +24,6 @@ public sealed class AdMobAds : IAdService
 	private const string InterstitialUnitId = "ca-app-pub-3940256099942544/1033173712";
 	private const string RewardedUnitId = "ca-app-pub-3940256099942544/5224354917";
 
-	private readonly InterstitialAdLoader _interstitialLoader = new();
-	private readonly RewardedAdLoader _rewardedLoader = new();
 	private InterstitialAd? _interstitial;
 	private RewardedAd? _rewarded;
 	private bool _ready;
@@ -132,7 +130,9 @@ public sealed class AdMobAds : IAdService
 	{
 		if (!_ready)
 			return;
-		_interstitialLoader.Load(InterstitialUnitId, new AdRequest(), new InterstitialAdLoadCallback
+		// A new loader every time: the plugin gives each loader one ID, every ad it loads shares it,
+		// and old ads stay connected, so reusing a loader makes one dismissal fire every past ad's callbacks.
+		new InterstitialAdLoader().Load(InterstitialUnitId, new AdRequest(), new InterstitialAdLoadCallback
 		{
 			OnAdLoaded = ad => _interstitial = ad,
 			OnAdFailedToLoad = error => DevLog.Write($"ad: interstitial failed to load: {error.Message}"),
@@ -143,7 +143,8 @@ public sealed class AdMobAds : IAdService
 	{
 		if (!_ready)
 			return;
-		_rewardedLoader.Load(RewardedUnitId, new AdRequest(), new RewardedAdLoadCallback
+		// New loader each time, as in LoadInterstitial.
+		new RewardedAdLoader().Load(RewardedUnitId, new AdRequest(), new RewardedAdLoadCallback
 		{
 			OnAdLoaded = ad => _rewarded = ad,
 			OnAdFailedToLoad = error => DevLog.Write($"ad: rewarded failed to load: {error.Message}"),
