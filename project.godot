@@ -31,6 +31,10 @@ window/handheld/orientation=1
 
 project/assembly_name="ConnectFour"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/admob/plugin.cfg")
+
 [physics]
 
 common/physics_ticks_per_second=120

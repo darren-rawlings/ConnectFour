@@ -118,9 +118,18 @@ public partial class Main : Node3D
 		_rig.RotateY(_initialSpin);
 
 		_adSchedule ??= new AdSchedule(_settings.GamesSinceAd);
-		var ads = new PlaceholderAds { AutoClose = _demo };
-		AddChild(ads);
-		_ads = ads;
+		if (AdMobAds.Available && !_demo)
+		{
+			var admob = new AdMobAds();
+			admob.Start();
+			_ads = admob;
+		}
+		else
+		{
+			var placeholder = new PlaceholderAds { AutoClose = _demo };
+			AddChild(placeholder);
+			_ads = placeholder;
+		}
 
 		_hud = new Hud();
 		AddChild(_hud);
