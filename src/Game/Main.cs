@@ -450,7 +450,13 @@ public partial class Main : Node3D
 			var player = new ComputerPlayer(_settings.Difficulty);
 			var snapshot = _match.Board.Clone();
 			int generation = _computerGeneration;
-			_thinking = Task.Run(() => (generation, player.ChooseMove(snapshot, ComputerSide)));
+			_thinking = Task.Run(() =>
+			{
+				var watch = System.Diagnostics.Stopwatch.StartNew();
+				int column = player.ChooseMove(snapshot, ComputerSide);
+				DevLog.Write($"computer ({player.Difficulty}) chose column {column} in {watch.ElapsedMilliseconds} ms");
+				return (generation, column);
+			});
 			_thinkTime = 0f;
 			RefreshUi();
 			return;
