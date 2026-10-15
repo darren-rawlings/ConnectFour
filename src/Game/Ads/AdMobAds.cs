@@ -35,7 +35,7 @@ public sealed class AdMobAds : IAdService
 	{
 		var consent = UserMessagingPlatform.ConsentInformation;
 		consent.Update(
-			new ConsentRequestParameters(),
+			new ConsentRequestParameters { TagForUnderAgeOfConsent = true },
 			onSuccess: () =>
 			{
 				bool formNeeded = consent.GetIsConsentFormAvailable()
@@ -52,10 +52,13 @@ public sealed class AdMobAds : IAdService
 	{
 		if (_ready)
 			return;
-		// Family-friendly ads only: the game is suitable for children even if not aimed at them.
+		// The game is for everyone, children included (Google Play Families policy), so every ad
+		// request is treated as child-directed: G-rated, non-personalised, no ad tracking.
 		MobileAds.SetRequestConfiguration(new RequestConfiguration
 		{
 			MaxAdContentRating = RequestConfiguration.MaxAdContentRatingG,
+			ChildDirectedTreatment = RequestConfiguration.TagForChildDirectedTreatment.True,
+			UnderAgeOfConsent = RequestConfiguration.TagForUnderAgeOfConsent.True,
 		});
 		MobileAds.Initialize(new OnInitializationCompleteListener
 		{
