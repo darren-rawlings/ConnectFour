@@ -6,7 +6,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "C:/GameDev/Godot & VS Code/Godot.exe",
+            "program": "C:/GameDev/Godot and VS Code/Godot.exe",
             "args": ["--path", "${workspaceFolder}"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false
