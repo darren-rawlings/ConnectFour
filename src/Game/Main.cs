@@ -9,6 +9,7 @@ using Renegade.Audio;
 using Renegade.Core;
 using Renegade.Dev;
 using static ConnectFour.Game.BoardLayout;
+using Difficulty = ConnectFour.Core.Difficulty;
 
 namespace ConnectFour.Game;
 
@@ -114,6 +115,8 @@ public partial class Main : Node3D
 	public override void _Ready()
 	{
 		DevLog.Tag = "cf";
+		// Flight recorder: checks every sound reaches the output and logs pauses, focus and ads to user://blackbox.log.
+		AudioWatch.Attach(this, "Counter Fire");
 		_settings = Settings.Load();
 		ReadDeveloperArgs();
 		AudioServer.SetBusMute(0, _settings.Muted);
