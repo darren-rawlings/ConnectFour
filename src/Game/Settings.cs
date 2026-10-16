@@ -16,6 +16,12 @@ public sealed class Settings
 	public Difficulty Difficulty { get; set; } = Difficulty.Medium;
 	public bool Muted { get; set; }
 
+	/// <summary>Stops drag-to-spin, for players who find the board moving when they meant to tap.</summary>
+	public bool FreezeBoard { get; set; }
+
+	/// <summary>The tutorial is offered once, the first time the game opens.</summary>
+	public bool TutorialOffered { get; set; }
+
 	/// <summary>Finished games since the last between-games ad; see <see cref="Renegade.Core.AdSchedule"/>.</summary>
 	public int GamesSinceAd { get; set; }
 
@@ -31,6 +37,8 @@ public sealed class Settings
 		settings.Mode = ReadEnum(file, "mode", settings.Mode);
 		settings.Difficulty = ReadEnum(file, "difficulty", settings.Difficulty);
 		settings.Muted = file.GetValue(Section, "muted", false).AsBool();
+		settings.FreezeBoard = file.GetValue(Section, "freeze_board", false).AsBool();
+		settings.TutorialOffered = file.GetValue(Section, "tutorial_offered", false).AsBool();
 		settings.GamesSinceAd = file.GetValue(Section, "games_since_ad", 0).AsInt32();
 		return settings;
 	}
@@ -44,6 +52,8 @@ public sealed class Settings
 		file.SetValue(Section, "mode", Mode.ToString());
 		file.SetValue(Section, "difficulty", Difficulty.ToString());
 		file.SetValue(Section, "muted", Muted);
+		file.SetValue(Section, "freeze_board", FreezeBoard);
+		file.SetValue(Section, "tutorial_offered", TutorialOffered);
 		file.SetValue(Section, "games_since_ad", GamesSinceAd);
 		file.Save(Path);
 	}

@@ -111,6 +111,7 @@ public partial class Main : Node3D
 	private AudioEffectRecord? _recorder;
 	private float _demoTimer;
 	private float _initialSpin;
+	private string? _clip;
 
 	public override void _Ready()
 	{
@@ -177,12 +178,102 @@ public partial class Main : Node3D
 			_settings.Save();
 			AudioServer.SetBusMute(0, muted);
 		};
+		_hud.FreezeToggled += frozen =>
+		{
+			_settings.FreezeBoard = frozen;
+			_settings.Save();
+		};
+		_hud.RestartPressed += OnRestartPressed;
+		_hud.SetTutorial(Tutorial.Pages);
 		if (_openDifficulty)
 			_hud.OpenDifficultyPopup();
 		else if (_openMenu)
 			_hud.OpenMenu();
 		RefreshUi();
+		if (_clip != null)
+		{
+			_hud.Visible = false;
+			_ = PlayClip(_clip);
+			return;
+		}
+		if (!_demo)
+			_hud.OfferTutorialOnce(_settings);
+		_hud.ApplyDevFlags();
 	}
+
+	// ---------------------------------------------------------------- Start over
+
+	/// <summary>
+	/// Start over clears the board mid-round. Against the computer that's resigning, so the round
+	/// goes to the computer, unless you watch an ad. The abandoned round doesn't count towards ads.
+	/// </summary>
+	private void OnRestartPressed()
+	{
+		if (_phase != Phase.Ready || _match.MoveCount == 0 || IsComputerTurn)
+			return;
+		_hud.AskRestart(VsComputer && !_demo, countLoss =>
+		{
+			if (_phase != Phase.Ready)
+				return;
+			_computerGeneration++;
+			_thinking = null;
+			if (countLoss)
+				_wins[ComputerSide]++;
+			DevLog.Write($"start over (counted as a loss: {countLoss})");
+			_phase = Phase.RoundOver;
+			Release();
+		}, then =>
+		{
+			DevLog.Write("ad: rewarded (start over)");
+			_phase = Phase.Advert;
+			_ads.ShowRewarded(
+				rewarded: () =>
+				{
+					_phase = Phase.Ready;
+					then();
+				},
+				closed: () =>
+				{
+					if (_phase == Phase.Advert)
+						_phase = Phase.Ready;
+					RefreshUi();
+				});
+		});
+	}
+
+	// ---------------------------------------------------------------- Tutorial clips
+
+	/// <summary>
+	/// Plays one scripted scene for the tutorial (with --clip=name; addons/renegade_core/tools/
+	/// Record-Clips.ps1 records it), then quits. The HUD is hidden so the clip shows only the board.
+	/// </summary>
+	private async Task PlayClip(string clip)
+	{
+		_settings.Mode = GameMode.PlayerVsPlayer;
+		_settings.Muted = false;
+		await Wait(0.8f);
+		int[] moves = clip == "drop" ? new[] { 3, 3, 4, 2, 4 } : new[] { 0, 0, 1, 1, 2, 2, 3 };
+		foreach (int column in moves)
+		{
+			TryPlay(column, byComputer: true);
+			while (_phase == Phase.Dropping)
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			await Wait(clip == "release" ? 0.1f : 0.35f);
+		}
+		if (clip == "release")
+		{
+			await Wait(1.0f);
+			Release();
+			await Wait(ReleaseTime + 0.6f);
+		}
+		else
+		{
+			await Wait(clip == "win" ? 3f : 1f);
+		}
+		GetTree().Quit();
+	}
+
+	private SignalAwaiter Wait(float seconds) => ToSignal(GetTree().CreateTimer(seconds), SceneTreeTimer.SignalName.Timeout);
 
 	// ---------------------------------------------------------------- World
 
@@ -283,7 +374,7 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>Spinning is allowed whenever no disc is in flight, so the physics stays put.</summary>
-	private bool CanSpin => _phase is Phase.Ready or Phase.RoundOver;
+	private bool CanSpin => _phase is Phase.Ready or Phase.RoundOver && !_settings.FreezeBoard;
 
 	private void Drag(float pixels)
 	{
@@ -863,6 +954,9 @@ public partial class Main : Node3D
 				case "--spin":
 					_initialSpin = Mathf.DegToRad(float.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
 					break;
+				case "--clip":
+					_clip = value;
+					break;
 			}
 		}
 	}
@@ -917,6 +1011,7 @@ public partial class Main : Node3D
 		_hud.SetScore($"{NameOf(Player.One)}  {_wins[Player.One]}   —   {_wins[Player.Two]}  {NameOf(Player.Two)}");
 		_hud.SetClearVisible(_phase == Phase.RoundOver);
 		_hud.SetUndoVisible(CanUndo);
+		_hud.SetRestartVisible(_phase == Phase.Ready && _match.MoveCount > 0 && !IsComputerTurn);
 
 		var current = _match.CurrentPlayer;
 		switch (_phase)

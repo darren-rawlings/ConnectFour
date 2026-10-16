@@ -1,43 +1,57 @@
 using System;
+using System.Collections.Generic;
 using ConnectFour.Core;
 using Godot;
+using Renegade.Ui;
 
 namespace ConnectFour.Game.Ui;
 
 /// <summary>
 /// Title, score, turn status and buttons, plus the style menu. Everything that isn't a button
-/// ignores the mouse so drags and taps reach the 3D board underneath.
+/// ignores the mouse so drags and taps reach the 3D board underneath. The top row matches the
+/// studio's other games (renegade-core's GameHud): Style and How to play on the left, Start over
+/// and Settings on the right; Settings, the tutorial and dialogs are the kit's own panels.
 /// </summary>
 public partial class Hud : CanvasLayer
 {
+	public const string Title = "Counter Fire";
+
 	public event Action? ClearPressed;
 	public event Action? UndoPressed;
+	public event Action? RestartPressed;
 	public event Action<Style>? BoardChosen;
 	public event Action<Style>? PiecesChosen;
 	public event Action<Backdrop>? BackdropChosen;
 	public event Action<bool>? MuteToggled;
+	public event Action<bool>? FreezeToggled;
 	public event Action<GameMode, Difficulty>? ModeChosen;
+
+	/// <summary>The kit panels (Settings, tutorial, dialogs) in Counter Fire's own blues.</summary>
+	private static readonly HudTheme Theme = new(Palette.Text, Palette.TextMuted, Palette.Accent, Palette.ButtonDark, Palette.Panel);
 
 	private Label _score = null!;
 	private Label _status = null!;
 	private Label _hint = null!;
 	private Button _clear = null!;
 	private Button _undo = null!;
-	private Button _mute = null!;
+	private Button _restart = null!;
+	private Button _howTo = null!;
 	private Control _menu = null!;
 	private Button _pvp = null!;
 	private Button _pvc = null!;
 	private Control _difficultyPopup = null!;
+	private SettingsPanel _settingsPanel = null!;
+	private TutorialPanel? _tutorial;
+	private int _dialogs;
 
 	public void Build(Settings settings)
 	{
-		bool muted = settings.Muted;
-		var title = MakeLabel("COUNTER FIRE", 60, Palette.Text);
-		Anchor(title, Control.LayoutPreset.TopWide, top: 60, bottom: 140);
+		var title = MakeLabel(Title, 54, Palette.Text);
+		Anchor(title, Control.LayoutPreset.TopWide, top: 34, bottom: 104);
 		AddChild(title);
 
-		_score = MakeLabel("", 30, Palette.TextMuted);
-		Anchor(_score, Control.LayoutPreset.TopWide, top: 140, bottom: 190);
+		_score = MakeLabel("", 26, Palette.TextMuted);
+		Anchor(_score, Control.LayoutPreset.TopWide, top: 100, bottom: 140);
 		AddChild(_score);
 
 		_status = MakeLabel("", 42, Palette.Text);
@@ -60,31 +74,120 @@ public partial class Hud : CanvasLayer
 		_undo.Visible = false;
 		AddChild(_undo);
 
-		var style = MakeButton("Style", 26, Palette.ButtonDark);
-		Anchor(style, Control.LayoutPreset.BottomLeft, left: 20, right: 160, top: -118, bottom: -58);
+		// The top row: small, so the board keeps the screen.
+		var style = MakeButton("Style", 22, Palette.ButtonDark);
+		Anchor(style, Control.LayoutPreset.TopLeft, left: 20, right: 124, top: 148, bottom: 196);
 		style.Pressed += () => _menu.Visible = true;
 		AddChild(style);
 
-		_mute = MakeButton("", 24, Palette.ButtonDark);
-		Anchor(_mute, Control.LayoutPreset.BottomRight, left: -170, right: -20, top: -118, bottom: -58);
-		_mute.Pressed += () =>
-		{
-			muted = !muted;
-			SetMuteText(muted);
-			MuteToggled?.Invoke(muted);
-		};
-		SetMuteText(muted);
-		AddChild(_mute);
+		_howTo = MakeButton("?", 26, Palette.ButtonDark);
+		Anchor(_howTo, Control.LayoutPreset.TopLeft, left: 134, right: 182, top: 148, bottom: 196);
+		_howTo.Pressed += () => _tutorial?.Offer();
+		_howTo.Visible = false;
+		AddChild(_howTo);
+
+		_restart = MakeButton("Start over", 22, Palette.ButtonDark);
+		Anchor(_restart, Control.LayoutPreset.TopRight, left: -290, right: -154, top: 148, bottom: 196);
+		_restart.Pressed += () => RestartPressed?.Invoke();
+		AddChild(_restart);
+
+		var settingsButton = MakeButton("Settings", 22, Palette.ButtonDark);
+		Anchor(settingsButton, Control.LayoutPreset.TopRight, left: -144, right: -20, top: 148, bottom: 196);
+		settingsButton.Pressed += () => _settingsPanel.Open();
+		AddChild(settingsButton);
 
 		BuildModeButtons(settings.Mode, settings.Difficulty);
 
 		_menu = BuildMenu(settings.Board, settings.Pieces, settings.Backdrop);
 		_menu.Visible = false;
 		AddChild(_menu);
+
+		_settingsPanel = new SettingsPanel(Theme);
+		_settingsPanel.AddToggle("Sound", !settings.Muted, on => MuteToggled?.Invoke(!on));
+		_settingsPanel.AddToggle("Freeze the board (no spinning)", settings.FreezeBoard, on => FreezeToggled?.Invoke(on));
+		AddChild(_settingsPanel);
 	}
 
-	/// <summary>True while a menu or pop-up is open; the board ignores taps meanwhile.</summary>
-	public bool MenuOpen => _menu.Visible || _difficultyPopup.Visible;
+	/// <summary>True while a menu, pop-up, panel or dialog is open; the board ignores taps meanwhile.</summary>
+	public bool MenuOpen => _menu.Visible || _difficultyPopup.Visible || _settingsPanel.Visible || _tutorial?.Visible == true || _dialogs > 0;
+
+	/// <summary>Sets the tutorial behind the "?" button.</summary>
+	public void SetTutorial(IReadOnlyList<TutorialPage> pages)
+	{
+		_tutorial?.QueueFree();
+		_tutorial = new TutorialPanel(Theme, Title, pages);
+		AddChild(_tutorial);
+		_howTo.Visible = pages.Count > 0;
+	}
+
+	/// <summary>Offers the tutorial the first time the game is opened, once.</summary>
+	public void OfferTutorialOnce(Settings settings)
+	{
+		if (_tutorial == null || settings.TutorialOffered)
+			return;
+		settings.TutorialOffered = true;
+		settings.Save();
+		_tutorial.Offer();
+	}
+
+	/// <summary>Developer checks: `--tutorial=N` opens the tour at step N (0 = the invitation), `--settings` opens Settings.</summary>
+	public void ApplyDevFlags()
+	{
+		foreach (string arg in OS.GetCmdlineUserArgs())
+		{
+			if (arg.StartsWith("--tutorial=") && int.TryParse(arg[11..], out int page))
+			{
+				if (page == 0)
+					_tutorial?.Offer();
+				else
+					_tutorial?.OpenAt(page - 1);
+			}
+			else if (arg == "--settings")
+			{
+				_settingsPanel.Open();
+			}
+		}
+	}
+
+	/// <summary>
+	/// Confirms starting over. Against the computer that's a resignation, a loss, unless the player
+	/// watches an ad: <paramref name="restart"/> is called with true when the loss should count.
+	/// </summary>
+	public void AskRestart(bool vsComputer, Action<bool> restart, Action<Action> watchAd)
+	{
+		if (vsComputer)
+		{
+			Dialog("Start over?",
+				"Against the computer, starting over counts as resigning: a loss. Watch a short ad and it won't count.",
+				("Watch an ad: no loss", true, () => watchAd(() => restart(false))),
+				("Resign and start over", false, () => restart(true)),
+				("Keep playing", false, null));
+		}
+		else
+		{
+			Dialog("Start over?", "This round will be cleared away and a new one started.",
+				("Start over", true, () => restart(false)),
+				("Keep playing", false, null));
+		}
+	}
+
+	private void Dialog(string title, string message, params (string Text, bool Accent, Action? Pressed)[] buttons)
+	{
+		_dialogs++;
+		var wrapped = new (string Text, bool Accent, Action? Pressed)[buttons.Length];
+		for (int i = 0; i < buttons.Length; i++)
+		{
+			var button = buttons[i];
+			wrapped[i] = (button.Text, button.Accent, () =>
+			{
+				_dialogs--;
+				button.Pressed?.Invoke();
+			});
+		}
+		ConfirmDialog.Show(this, Theme, title, message, wrapped);
+	}
+
+	public void SetRestartVisible(bool visible) => _restart.Visible = visible;
 
 	public void OpenMenu() => _menu.Visible = true;
 
@@ -111,7 +214,7 @@ public partial class Hud : CanvasLayer
 	}
 
 	/// <summary>
-	/// Two stacked buttons between Style and Sound. Choosing "Player vs Computer" pops up the
+	/// Two stacked buttons at the bottom. Choosing "Player vs Computer" pops up the
 	/// difficulty choice first; the mode only changes once a level is picked, and tapping
 	/// outside the pop-up leaves everything as it was.
 	/// </summary>
@@ -181,8 +284,6 @@ public partial class Hud : CanvasLayer
 		Restyle(_pvp, vsComputer ? Palette.ButtonDark : Palette.Accent);
 		Restyle(_pvc, vsComputer ? Palette.Accent : Palette.ButtonDark);
 	}
-
-	private void SetMuteText(bool muted) => _mute.Text = muted ? "Sound: Off" : "Sound: On";
 
 	private Control BuildMenu(Style board, Style pieces, Backdrop backdrop)
 	{
