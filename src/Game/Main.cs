@@ -418,6 +418,14 @@ public partial class Main : Node3D
 			_rig.RotateY(_spinVelocity * dt);
 			_spinVelocity *= Mathf.Exp(-SpinDamping * dt);
 		}
+		// Freeze the board also turns it back to where it started, whenever no disc is moving.
+		if (_settings.FreezeBoard && _phase is Phase.Ready or Phase.RoundOver)
+		{
+			_spinVelocity = 0f;
+			float off = Mathf.AngleDifference(_rig.Rotation.Y, 0f);
+			if (Mathf.Abs(off) > 0.0005f)
+				_rig.RotateY(Mathf.Abs(off) < 0.002f ? off : off * (1f - Mathf.Exp(-9f * dt)));
+		}
 		SyncSettledDiscs();
 
 		bool showGhost = _phase == Phase.Ready && _hoverColumn >= 0 && !_hud.MenuOpen && !IsComputerTurn;

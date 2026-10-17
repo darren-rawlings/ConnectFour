@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ConnectFour.Core;
 using Godot;
+using Renegade.Store;
 using Renegade.Ui;
 
 namespace ConnectFour.Game.Ui;
@@ -80,8 +81,9 @@ public partial class Hud : CanvasLayer
 		style.Pressed += () => _menu.Visible = true;
 		AddChild(style);
 
-		_howTo = MakeButton("?", 26, Palette.ButtonDark);
-		Anchor(_howTo, Control.LayoutPreset.TopLeft, left: 134, right: 182, top: 148, bottom: 196);
+		// "Demo": the guided tour with video clips of the game.
+		_howTo = MakeButton("Demo", 22, Palette.ButtonDark);
+		Anchor(_howTo, Control.LayoutPreset.TopLeft, left: 134, right: 234, top: 148, bottom: 196);
 		_howTo.Pressed += () => _tutorial?.Offer();
 		_howTo.Visible = false;
 		AddChild(_howTo);
@@ -106,12 +108,22 @@ public partial class Hud : CanvasLayer
 		_settingsPanel.AddToggle("Sound", !settings.Muted, on => MuteToggled?.Invoke(!on));
 		_settingsPanel.AddToggle("Freeze the board (no spinning)", settings.FreezeBoard, on => FreezeToggled?.Invoke(on));
 		AddChild(_settingsPanel);
+
+		// The shop at the foot of Settings; once ads are removed, "(ad)" leaves the Undo label.
+		ShopRows.Add(_settingsPanel, this, message => Dialog("", message, ("OK", true, null)));
+		if (Shop.Current is { } shop)
+		{
+			void Relabel() => _undo.Text = ShopRows.AdText("Undo (ad)");
+			shop.Changed += Relabel;
+			TreeExiting += () => shop.Changed -= Relabel;
+			Relabel();
+		}
 	}
 
 	/// <summary>True while a menu, pop-up, panel or dialog is open; the board ignores taps meanwhile.</summary>
 	public bool MenuOpen => _menu.Visible || _difficultyPopup.Visible || _settingsPanel.Visible || _tutorial?.Visible == true || _dialogs > 0;
 
-	/// <summary>Sets the tutorial behind the "?" button.</summary>
+	/// <summary>Sets the tutorial behind the Demo button.</summary>
 	public void SetTutorial(IReadOnlyList<TutorialPage> pages)
 	{
 		_tutorial?.QueueFree();
@@ -155,6 +167,14 @@ public partial class Hud : CanvasLayer
 	/// </summary>
 	public void AskRestart(bool vsComputer, Action<bool> restart, Action<Action> watchAd)
 	{
+		if (vsComputer && Shop.Current?.AdsRemoved == true)
+		{
+			// No ads to watch: starting over is simply free.
+			Dialog("Start over?", "This round will be cleared away and a new one started. It won't count as a loss.",
+				("Start over", true, () => restart(false)),
+				("Keep playing", false, null));
+			return;
+		}
 		if (vsComputer)
 		{
 			Dialog("Start over?",
