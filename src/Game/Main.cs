@@ -80,7 +80,9 @@ public partial class Main : Node3D
 	/// Google's test ad units until the real ones exist in the AdMob account. The game is for
 	/// everyone, children included, so every ad request is child-directed.
 	/// </summary>
-	private static readonly AdMobConfig AdUnits = AdMobConfig.Test;
+	private static readonly AdMobConfig AdUnits = new(
+		InterstitialUnitId: "ca-app-pub-3310172999423635/9320899278",
+		RewardedUnitId: "ca-app-pub-3310172999423635/2823114545");
 
 	private IAdService _ads = null!;
 	private AdSchedule _adSchedule = null!;
